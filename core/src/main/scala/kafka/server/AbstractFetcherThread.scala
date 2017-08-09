@@ -63,6 +63,11 @@ abstract class AbstractFetcherThread(name: String,
   // handle a partition whose offset is out of range and return a new fetch offset
   def handleOffsetOutOfRange(topicAndPartition: TopicAndPartition): Long
 
+  // handle a partition whose offset is out of range and return a new fetch offset
+  def handleOffsetOutOfRange(requestOffset: Long, topicAndPartition: TopicAndPartition): Long = {
+    handleOffsetOutOfRange(topicAndPartition)
+  }
+
   // deal with partitions with errors, potentially due to leadership changes
   def handlePartitionsWithErrors(partitions: Iterable[TopicAndPartition])
 
@@ -149,7 +154,7 @@ abstract class AbstractFetcherThread(name: String,
                   }
                 case Errors.OFFSET_OUT_OF_RANGE =>
                   try {
-                    val newOffset = handleOffsetOutOfRange(topicAndPartition)
+                    val newOffset = handleOffsetOutOfRange(currentPartitionFetchState.offset, topicAndPartition)
                     partitionMap.put(topicAndPartition, new PartitionFetchState(newOffset))
                     error("Current offset %d for partition [%s,%d] out of range; reset offset to %d"
                       .format(currentPartitionFetchState.offset, topic, partitionId, newOffset))

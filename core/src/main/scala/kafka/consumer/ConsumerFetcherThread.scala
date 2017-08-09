@@ -17,11 +17,12 @@
 
 package kafka.consumer
 
-import kafka.api.{OffsetRequest, Request, FetchRequestBuilder, FetchResponsePartitionData}
+import kafka.api.{FetchRequestBuilder, FetchResponsePartitionData, OffsetRequest, Request}
 import kafka.cluster.BrokerEndPoint
 import kafka.message.ByteBufferMessageSet
-import kafka.server.{PartitionFetchState, AbstractFetcherThread}
+import kafka.server.{AbstractFetcherThread, PartitionFetchState}
 import kafka.common.{ErrorMapping, TopicAndPartition}
+
 import scala.collection.JavaConverters
 import JavaConverters._
 import ConsumerFetcherThread._
@@ -86,6 +87,28 @@ class ConsumerFetcherThread(name: String,
     pti.resetFetchOffset(newOffset)
     pti.resetConsumeOffset(newOffset)
     newOffset
+  }
+
+  // handle a partition whose offset is out of range and return a new fetch offset
+  override def handleOffsetOutOfRange(requestOffset: Long, topicAndPartition: TopicAndPartition): Long = {
+    if (config.smartOffsetReset) {
+      lazy val earliestOffset = simpleConsumer.earliestOrLatestOffset(topicAndPartition, OffsetRequest.EarliestTime, Request.OrdinaryConsumerId)
+      lazy val latestOffset = simpleConsumer.earliestOrLatestOffset(topicAndPartition, OffsetRequest.LatestTime, Request.OrdinaryConsumerId)
+
+      val newOffset = if (requestOffset < earliestOffset) {
+        earliestOffset
+      } else if (requestOffset > latestOffset) {
+        latestOffset
+      } else {
+        requestOffset
+      }
+
+      val pti = partitionMap(topicAndPartition)
+      pti.resetFetchOffset(newOffset)
+      pti.resetConsumeOffset(newOffset)
+      newOffset
+    }
+    else handleOffsetOutOfRange(topicAndPartition)
   }
 
   // any logic for partitions whose leader has changed

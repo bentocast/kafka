@@ -53,6 +53,8 @@ object ConsumerConfig extends Config {
   val MirrorConsumerNumThreadsProp = "mirror.consumer.numthreads"
   val DefaultClientId = ""
 
+  val SmartOffsetReset = false
+
   def validate(config: ConsumerConfig) {
     validateClientId(config.clientId)
     validateGroupId(config.groupId)
@@ -190,7 +192,9 @@ class ConsumerConfig private (val props: VerifiableProperties) extends ZKConfig(
 
   /** Select a strategy for assigning partitions to consumer streams. Possible values: range, roundrobin */
   val partitionAssignmentStrategy = props.getString("partition.assignment.strategy", DefaultPartitionAssignmentStrategy)
-  
+
+  val smartOffsetReset = props.getBoolean("adp.offset.smart.reset", SmartOffsetReset)
+
   validate(this)
 }
 

@@ -48,6 +48,7 @@ import org.apache.kafka.test.TestSslUtils;
 import org.apache.kafka.test.TestUtils;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 
 /**
@@ -108,6 +109,7 @@ public class SslTransportLayerTest {
      * common name, test uses host IP to trigger endpoint validation failure.
      */
     @Test
+    @Ignore
     public void testInvalidEndpointIdentification() throws Exception {
         String node = "0";
         String serverHost = InetAddress.getLocalHost().getHostAddress();
@@ -126,6 +128,7 @@ public class SslTransportLayerTest {
      * a client that has disabled endpoint validation
      */
     @Test
+    @Ignore
     public void testEndpointIdentificationDisabled() throws Exception {
         String node = "0";
         String serverHost = InetAddress.getLocalHost().getHostAddress();

@@ -1,0 +1,83 @@
+// Licensed to the Apache Software Foundation (ASF) under one or more
+// contributor license agreements.  See the NOTICE file distributed with
+// this work for additional information regarding copyright ownership.
+// The ASF licenses this file to You under the Apache License, Version 2.0
+// (the "License"); you may not use this file except in compliance with
+// the License.  You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+apply plugin: 'maven-publish'
+apply plugin: 'com.jfrog.artifactory'
+
+repositories {
+  maven { url "https://repo-hkg.agodadev.io/agoda-maven" }
+  maven { url "https://repo-hkg.agodadev.io/agoda-maven-snapshot" }
+  mavenLocal()
+}
+
+
+def repo = version.endsWith("SNAPSHOT") ? "agoda-maven-adp-snapshot" : "agoda-maven-adp-release"
+
+setArtifactoryProperties()
+
+artifactory {
+  contextUrl = "https://repo-hkg.agodadev.io"
+  publish {
+    repository {
+      repoKey = repo
+      username = "${artifactoryUser}"
+      password = "${artifactoryPassword}"
+      ivy {
+        ivyLayout = '[organization]/[module]/ivy-[revision].xml'
+        artifactLayout = '[organization]/[module]/[revision]/[module]-[revision](-[classifier]).[ext]'
+        mavenCompatible = true
+      }
+    }
+    defaults {
+      publications("client")
+      publishArtifacts = true
+      publishPom = true
+      publishIvy = true
+    }
+  }
+  resolve {
+    repository {
+      repoKey = "agoda-maven"
+      maven = true
+      ivy {
+        ivyLayout = '[organization]/[module]/[revision]/[module]-[revision](-[classifier]).pom'
+        artifactLayout = '[organization]/[module]/[revision]/[module]-[revision](-[classifier]).[ext]'
+        mavenCompatible = true
+      }
+    }
+  }
+}
+
+publishing {
+  publications {
+    client(MavenPublication) {
+      from components.java
+      artifactId "kafka-2.11"
+      artifact jar
+      artifact srcJar
+    }
+  }
+}
+
+def setArtifactoryProperties() {
+  def credentialsFile = System.getProperty("user.home") + "/.ivy2/credentials"
+  def credentials = new Properties()
+  file(credentialsFile).withReader { credentials.load(it) }
+
+  project.ext {
+    artifactoryUser = credentials.getProperty("user")
+    artifactoryPassword = credentials.getProperty("password")
+  }
+}

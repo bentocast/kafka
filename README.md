@@ -123,3 +123,12 @@ To contribute follow the instructions here:
 
 We also welcome patches for the website and documentation which can be found here:
  * https://svn.apache.org/repos/asf/kafka/site
+
+
+### ADP additions ###
+
+The old consumer (not new one) supports an additional property adp.offset.smart.reset that when set to true, will use a custom offset reset strategy as follows
+ * If the consumer's requested offset is less than the smallest offset that is valid for the topic/partition, then it will be forward to that smallest valid offset.
+ * Else, if the consumer's requested offset is larger than the largest offset that is valid for the topic/partition, it will rewind to that largest valid offset,
+ * Else, it is in range and needs no special handling.
+ * If the consumer has not specified an initial request offset, it will be set according to the strategy specified by auto.offset.reset

@@ -17,13 +17,13 @@
 
 package kafka.integration
 
-import kafka.utils.{ZKGroupTopicDirs, Logging}
-import kafka.consumer.{ConsumerTimeoutException, ConsumerConfig, ConsumerConnector, Consumer}
+import kafka.common.TopicAndPartition
+import kafka.utils.{Logging, ZKGroupTopicDirs}
+import kafka.consumer.{Consumer, ConsumerConfig, ConsumerConnector, ConsumerTimeoutException}
 import kafka.server._
 import kafka.utils.TestUtils
 import kafka.serializer._
-import kafka.producer.{Producer, KeyedMessage}
-
+import kafka.producer.{KeyedMessage, Producer}
 import org.junit.{After, Before, Test}
 import org.apache.log4j.{Level, Logger}
 import org.junit.Assert._
@@ -57,26 +57,45 @@ class AutoOffsetResetTest extends KafkaServerTestHarness with Logging {
 
   @Test
   def testResetToEarliestWhenOffsetTooHigh() =
-    assertEquals(NumMessages, resetAndConsume(NumMessages, "smallest", LargeOffset))
+    assertEquals(NumMessages, resetAndConsume(NumMessages, "smallest", LargeOffset, 0))
 
   @Test
   def testResetToEarliestWhenOffsetTooLow() =
-    assertEquals(NumMessages, resetAndConsume(NumMessages, "smallest", SmallOffset))
+    assertEquals(NumMessages, resetAndConsume(NumMessages, "smallest", SmallOffset, 0))
 
   @Test
   def testResetToLatestWhenOffsetTooHigh() =
-    assertEquals(0, resetAndConsume(NumMessages, "largest", LargeOffset))
+    assertEquals(0, resetAndConsume(NumMessages, "largest", LargeOffset, 0))
 
   @Test
   def testResetToLatestWhenOffsetTooLow() =
-    assertEquals(0, resetAndConsume(NumMessages, "largest", SmallOffset))
+    assertEquals(0, resetAndConsume(NumMessages, "largest", SmallOffset, 0))
 
-  /* Produce the given number of messages, create a consumer with the given offset policy, 
-   * then reset the offset to the given value and consume until we get no new messages. 
+  @Test
+  def testSmartResetWhenReqOffsetTooLowAndStrategySmallest() =
+    assertEquals(NumMessages, resetAndConsume(NumMessages, "smallest", 5, 10, ("adp.offset.smart.reset", "true")))
+
+  @Test
+  def testSmartResetWhenReqOffsetTooLowAndStrategyLargest() =
+    assertEquals(NumMessages, resetAndConsume(NumMessages, "largest", 5, 10, ("adp.offset.smart.reset", "true")))
+
+  @Test
+  def testSmartResetWhenReqOffsetTooHighAndStrategySmallest() =
+    assertEquals(0, resetAndConsume(NumMessages, "smallest", 100, 10, ("adp.offset.smart.reset", "true")))
+
+  @Test
+  def testSmartResetWhenReqOffsetTooHighAndStrategyLargest() =
+    assertEquals(0, resetAndConsume(NumMessages, "largest", 100, 10, ("adp.offset.smart.reset", "true")))
+
+  /* Set the starting offset of a test topic to a given offset, produce the given number of messages,
+   * create a consumer with the given offset policy and given offset, and consume until we get no new messages.
    * Returns the count of messages received.
    */
-  def resetAndConsume(numMessages: Int, resetTo: String, offset: Long): Int = {
+  def resetAndConsume(numMessages: Int, resetTo: String, consumerInitialOffset: Long, firstOffsetInServer: Long, extraConsumerProps: (String, AnyRef)*): Int = {
     TestUtils.createTopic(zkUtils, topic, 1, 1, servers)
+
+    if (firstOffsetInServer != 0L)
+      servers(0).logManager.truncateFullyAndStartAt(new TopicAndPartition(topic, 0), firstOffsetInServer);
 
     val producer: Producer[String, Array[Byte]] = TestUtils.createProducer(
       TestUtils.getBrokerListStrFromServers(servers),
@@ -91,10 +110,11 @@ class AutoOffsetResetTest extends KafkaServerTestHarness with Logging {
     consumerProps.put("auto.offset.reset", resetTo)
     consumerProps.put("consumer.timeout.ms", "2000")
     consumerProps.put("fetch.wait.max.ms", "0")
+    extraConsumerProps.foreach(p => consumerProps.put(p._1, p._2));
     val consumerConfig = new ConsumerConfig(consumerProps)
 
-    TestUtils.updateConsumerOffset(consumerConfig, dirs.consumerOffsetDir + "/" + "0", offset)
-    info("Updated consumer offset to " + offset)
+    TestUtils.updateConsumerOffset(consumerConfig, dirs.consumerOffsetDir + "/" + "0", consumerInitialOffset)
+    info("Updated consumer offset to " + consumerInitialOffset)
     
     val consumerConnector: ConsumerConnector = Consumer.create(consumerConfig)
     val messageStream = consumerConnector.createMessageStreams(Map(topic -> 1))(topic).head

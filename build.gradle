@@ -17,13 +17,17 @@ import org.ajoberstar.grgit.Grgit
 
 buildscript {
   repositories {
+    maven { url "https://repo-hkg.agodadev.io/agoda-maven" }
     mavenCentral()
+    mavenLocal()
   }
+
   apply from: file('gradle/buildscript.gradle'), to: buildscript
 
   dependencies {
     // For Apache Rat plugin to ignore non-Git files, need ancient version for Java 6 compatibility
     classpath group: 'org.ajoberstar', name: 'grgit', version: '0.2.3'
+    classpath 'org.jfrog.buildinfo:build-info-extractor-gradle:3.2.0'
   }
 }
 
@@ -43,6 +47,11 @@ allprojects {
     mavenCentral()
   }
 }
+
+ScalaCompileOptions.metaClass.daemonServer = true
+ScalaCompileOptions.metaClass.fork = true
+ScalaCompileOptions.metaClass.useAnt = false
+ScalaCompileOptions.metaClass.useCompileDaemon = false
 
 ext {
     gradleVersion = "2.8"
@@ -95,38 +104,6 @@ subprojects {
         //noinspection SpellCheckingInspection
         options.addStringOption('Xdoclint:none', '-quiet')
       }
-  }
-
-  uploadArchives {
-    repositories {
-      signing {
-          required { shouldSign }
-          sign configurations.archives
-
-          // To test locally, replace mavenUrl in ~/.gradle/gradle.properties to file://localhost/tmp/myRepo/
-          mavenDeployer {
-              beforeDeployment { MavenDeployment deployment -> signing.signPom(deployment) }
-              repository(url: "${mavenUrl}") {
-                  authentication(userName: "${mavenUsername}", password: "${mavenPassword}")
-              }
-              afterEvaluate {
-                  pom.artifactId = "${archivesBaseName}"
-                  pom.project {
-                      name 'Apache Kafka'
-                      packaging 'jar'
-                      url 'http://kafka.apache.org'
-                      licenses {
-                          license {
-                              name 'The Apache Software License, Version 2.0'
-                              url 'http://www.apache.org/licenses/LICENSE-2.0.txt'
-                              distribution 'repo'
-                          }
-                      }
-                  }
-              }
-          }
-      }
-    }
   }
 
   tasks.withType(Test) {
@@ -253,6 +230,8 @@ project(':core') {
 
   apply plugin: 'scala'
   archivesBaseName = "kafka_${baseScalaVersion}"
+
+  apply from: file('publish.gradle'), to: project(':core')
 
   dependencies {
     compile project(':clients')
