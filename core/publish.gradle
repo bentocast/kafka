@@ -64,7 +64,7 @@ publishing {
   publications {
     client(MavenPublication) {
       from components.java
-      artifactId "kafka-2.11"
+      artifactId "kafka_2.11"
       artifact jar
       artifact srcJar
     }
