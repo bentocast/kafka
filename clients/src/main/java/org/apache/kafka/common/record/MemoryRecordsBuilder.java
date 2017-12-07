@@ -37,7 +37,8 @@ public class MemoryRecordsBuilder {
 
     static private final float COMPRESSION_RATE_DAMPING_FACTOR = 0.9f;
     static private final float COMPRESSION_RATE_ESTIMATION_FACTOR = 1.05f;
-    static private final int COMPRESSION_DEFAULT_BUFFER_SIZE = 1024;
+    static private final int GZIP_DEFAULT_BUFFER_SIZE = 1024;
+    static private final int SNAPPY_DEFAULT_BUFFER_SIZE = 32*1024;
 
     private static final float[] TYPE_TO_RATE;
 
@@ -143,7 +144,7 @@ public class MemoryRecordsBuilder {
 
         // create the stream
         bufferStream = new ByteBufferOutputStream(buffer);
-        appendStream = wrapForOutput(bufferStream, compressionType, magic, COMPRESSION_DEFAULT_BUFFER_SIZE);
+        appendStream = wrapForOutput(bufferStream, compressionType, magic);
     }
 
     public ByteBuffer buffer() {
@@ -396,16 +397,16 @@ public class MemoryRecordsBuilder {
         return builtRecords != null ? builtRecords.sizeInBytes() : estimatedBytesWritten();
     }
 
-    private static DataOutputStream wrapForOutput(ByteBufferOutputStream buffer, CompressionType type, byte messageVersion, int bufferSize) {
+    private static DataOutputStream wrapForOutput(ByteBufferOutputStream buffer, CompressionType type, byte messageVersion) {
         try {
             switch (type) {
                 case NONE:
                     return buffer;
                 case GZIP:
-                    return new DataOutputStream(new GZIPOutputStream(buffer, bufferSize));
+                    return new DataOutputStream(new GZIPOutputStream(buffer, GZIP_DEFAULT_BUFFER_SIZE));
                 case SNAPPY:
                     try {
-                        OutputStream stream = (OutputStream) snappyOutputStreamSupplier.get().newInstance(buffer, bufferSize);
+                        OutputStream stream = (OutputStream) snappyOutputStreamSupplier.get().newInstance(buffer, SNAPPY_DEFAULT_BUFFER_SIZE);
                         return new DataOutputStream(stream);
                     } catch (Exception e) {
                         throw new KafkaException(e);

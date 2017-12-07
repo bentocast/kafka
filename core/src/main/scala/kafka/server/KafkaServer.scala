@@ -42,6 +42,7 @@ import org.apache.kafka.common.internals.ClusterResourceListeners
 import org.apache.kafka.common.metrics.{JmxReporter, Metrics, _}
 import org.apache.kafka.common.network._
 import org.apache.kafka.common.protocol.{ApiKeys, Errors, SecurityProtocol}
+import org.apache.kafka.common.record.MemoryRecordsBuilder
 import org.apache.kafka.common.requests.{ControlledShutdownRequest, ControlledShutdownResponse}
 import org.apache.kafka.common.security.JaasUtils
 import org.apache.kafka.common.utils.{AppInfoParser, Time}
@@ -169,6 +170,7 @@ class KafkaServer(val config: KafkaConfig, time: Time = Time.SYSTEM, threadNameP
   def startup() {
     try {
       info("starting")
+      info("ADP Kafka built - Using 32KB Snappy Block size")
 
       if(isShuttingDown.get)
         throw new IllegalStateException("Kafka server is still shutting down, cannot re-start!")
