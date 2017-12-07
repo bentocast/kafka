@@ -38,7 +38,7 @@ public class MemoryRecordsBuilder {
     static private final float COMPRESSION_RATE_DAMPING_FACTOR = 0.9f;
     static private final float COMPRESSION_RATE_ESTIMATION_FACTOR = 1.05f;
     static private final int GZIP_DEFAULT_BUFFER_SIZE = 1024;
-    static private final int SNAPPY_DEFAULT_BUFFER_SIZE = 32*1024;
+    static private final int SNAPPY_DEFAULT_BUFFER_SIZE = 32 * 1024;
 
     private static final float[] TYPE_TO_RATE;
 
