@@ -42,6 +42,7 @@ object RequestChannel extends Logging {
     buffer = getShutdownReceive, startTimeMs = 0, listenerName = new ListenerName(""),
     securityProtocol = SecurityProtocol.PLAINTEXT)
   private val requestLogger = Logger.getLogger("kafka.request.logger")
+  private val headerExtractedInfo = Logger.getLogger("kafka.headerinfo.logger")
 
   private def getShutdownReceive = {
     val emptyProduceRequest = new ProduceRequest.Builder(0, 0, new HashMap[TopicPartition, MemoryRecords]()).build()
@@ -154,9 +155,80 @@ object RequestChannel extends Logging {
 
       if (requestLogger.isDebugEnabled) {
         val detailsEnabled = requestLogger.isTraceEnabled
-        requestLogger.trace("Completed request:%s from connection %s;totalTime:%d,requestQueueTime:%d,localTime:%d,remoteTime:%d,responseQueueTime:%d,sendTime:%d,securityProtocol:%s,principal:%s,listener:%s"
-          .format(requestDesc(detailsEnabled), connectionId, totalTime, requestQueueTime, apiLocalTime, apiRemoteTime, responseQueueTime, responseSendTime, securityProtocol, session.principal, listenerName.value))
+            requestLogger.trace("Completed request:%s from connection %s;totalTime:%d,requestQueueTime:%d,localTime:%d,remoteTime:%d,responseQueueTime:%d,sendTime:%d,securityProtocol:%s,principal:%s,listener:%s"
+              .format(requestDesc(detailsEnabled), connectionId, totalTime, requestQueueTime, apiLocalTime, apiRemoteTime, responseQueueTime, responseSendTime, securityProtocol, session.principal, listenerName.value))
       }
+
+      if(headerExtractedInfo.isTraceEnabled) {
+        if(header.apiKey() == 0 || header.apiKey() == 1 || header.apiKey() == 8) {
+          val api_key = header.apiKey()
+          val api_version = header.apiVersion()
+          val client_id = header.clientId()
+
+          // Pattern for getting information
+          val topicPattern = "topic=(.\\w*)".r
+          val ipPattern = "(\\b(?:\\d{1,3}\\.){3}\\d{1,3}\\b)".r
+
+          val bodyString =
+            try {
+              body.toString
+            } catch {
+              case ex: Exception => {
+                headerExtractedInfo.trace(ex.printStackTrace())
+              }
+                ""
+            }
+
+          val topic =
+            try {
+              topicPattern.findAllMatchIn(bodyString).map(_.group(1)).toList.mkString(", ")
+            } catch {
+              case ex: Exception => {
+                headerExtractedInfo.trace(ex.printStackTrace())
+              }
+                ""
+            }
+
+          val ip =
+            try {
+              ipPattern.findAllMatchIn(connectionId).toList(1).toString
+            } catch {
+              case ex: Exception => {
+                headerExtractedInfo.trace(ex.printStackTrace())
+                ""
+              }
+            }
+
+          if (header.apiKey() != 8) {
+            headerExtractedInfo.trace((
+              "{ api_key:%d, " +
+                "api_version:%d, " +
+                "client_id:%s, " +
+                "topic:%s, " +
+                "ip:%s }")
+              .format(api_key, api_version, client_id, topic, ip))
+          } else {
+            val group_id =
+              try {
+                body.asInstanceOf[OffsetCommitRequest].groupId()
+              } catch {
+                case ex: Exception => {
+                  headerExtractedInfo.trace(ex.printStackTrace())
+                  ""
+                }
+              }
+              headerExtractedInfo.trace((
+              "{ api_key:%d, " +
+                "api_version:%d, " +
+                "client_id:%s, " +
+                "topic:%s, " +
+                "ip:%s, " +
+                "consumer_group:%s }")
+              .format(api_key, api_version, client_id, topic, ip, group_id))
+          }
+        }
+      }
+
     }
   }
 
