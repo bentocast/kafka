@@ -18,9 +18,10 @@
 package kafka.utils
 
 
-import org.apache.log4j.{Logger, Level, LogManager}
 import java.util
 import java.util.Locale
+
+import org.apache.log4j.{Level, LogManager, Logger}
 
 
 object Log4jController {
@@ -88,6 +89,21 @@ private class Log4jController extends Log4jControllerMBean {
     else false
   }
 
+  def setAggregationPeriod(t: String) = {
+    try {
+       ClientRequestAggregator.period = Integer.parseInt(t)
+    } catch {
+      case _: Exception => {
+        false
+      }
+    }
+    true
+  }
+
+  def getAggregationPeriod()  = {
+    ClientRequestAggregator.period.toString
+  }
+
 }
 
 
@@ -95,5 +111,7 @@ private trait Log4jControllerMBean {
   def getLoggers: java.util.List[String]
   def getLogLevel(logger: String): String
   def setLogLevel(logger: String, level: String): Boolean
+  def setAggregationPeriod(t: String)
+  def getAggregationPeriod() : String
 }
 
