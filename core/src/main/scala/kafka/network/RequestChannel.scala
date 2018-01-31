@@ -26,8 +26,7 @@ import com.yammer.metrics.core.Gauge
 import kafka.api.{ControlledShutdownRequest, RequestOrResponse}
 import kafka.metrics.KafkaMetricsGroup
 import kafka.server.QuotaId
-import kafka.utils.Logging
-import kafka.utils.ClientRequestAggregator
+import kafka.utils.{ClientRequestAggregator, KafkaScheduler, Logging}
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.errors.InvalidRequestException
 import org.apache.kafka.common.network.{ListenerName, Send}
@@ -37,7 +36,11 @@ import org.apache.kafka.common.requests._
 import org.apache.kafka.common.security.auth.KafkaPrincipal
 import org.apache.kafka.common.utils.Time
 import org.apache.log4j.Logger
-import kafka.utils.KafkaScheduler
+
+import scala.collection.JavaConverters._
+import scala.concurrent.duration._
+import scala.concurrent.{Await, Future}
+import scala.concurrent.ExecutionContext.Implicits.global
 
 object RequestChannel extends Logging {
   val AllDone = Request(processor = 1, connectionId = "2", Session(KafkaPrincipal.ANONYMOUS, InetAddress.getLocalHost),
@@ -45,19 +48,38 @@ object RequestChannel extends Logging {
     securityProtocol = SecurityProtocol.PLAINTEXT)
   private val requestLogger = Logger.getLogger("kafka.request.logger")
   private val headerExtractedInfo = Logger.getLogger("kafka.headerinfo.logger")
-  private val consumerHeaderInfos: collection.mutable.Set[String] = collection.mutable.Set(null)
+
+  // ConcurrentSet structure
+  def createSet[T]() = java.util.Collections.newSetFromMap(
+    new java.util.concurrent.ConcurrentHashMap[T, java.lang.Boolean]).asScala
+
+  // Global variable per Thread
+  private val consumerHeaderInfos = createSet[String]
   private var tempPeriod = ClientRequestAggregator.period
 
-  private def task(): Unit = {
+  // Thread handling
+  private def initiateSchedulerForAggregation(tempPeriod: Int): KafkaScheduler = {
+    var scheduler = new KafkaScheduler(threads = 100, threadNamePrefix = "Log-Aggregation-")
+    scheduler.startup()
+    scheduler.schedule("ReqeustHeader-" + tempPeriod, printAggregationLogTask, tempPeriod, tempPeriod, unit = TimeUnit.SECONDS)
+    headerExtractedInfo.trace("Aggregation Period is set to " + tempPeriod.toString)
+    scheduler
+  }
+
+  private def terminateScheduler(scheduler: KafkaScheduler){
+    if(scheduler.isStarted){
+      scheduler.shutdown()
+    }
+  }
+
+  private def printAggregationLogTask() {
+    // Print record out to TRACE of request.headerinfo logger and clear collection
     headerExtractedInfo.trace("Aggregation Period is " + tempPeriod.toString)
-    consumerHeaderInfos.map(info => headerExtractedInfo.trace(info))
+    consumerHeaderInfos.foreach(info => headerExtractedInfo.trace(info))
     consumerHeaderInfos.clear()
   }
 
-  var aggScheduler = new KafkaScheduler(threads = 100, threadNamePrefix = "Log-Aggregation-")
-  aggScheduler.startup()
-  aggScheduler.schedule("ReqeustHeader-" + tempPeriod, task, tempPeriod, tempPeriod, unit = TimeUnit.SECONDS)
-  headerExtractedInfo.trace("Aggregation Period is set to " + tempPeriod.toString)
+  var aggScheduler = initiateSchedulerForAggregation(tempPeriod)
 
   private def getShutdownReceive = {
     val emptyProduceRequest = new ProduceRequest.Builder(0, 0, new HashMap[TopicPartition, MemoryRecords]()).build()
@@ -174,22 +196,9 @@ object RequestChannel extends Logging {
               .format(requestDesc(detailsEnabled), connectionId, totalTime, requestQueueTime, apiLocalTime, apiRemoteTime, responseQueueTime, responseSendTime, securityProtocol, session.principal, listenerName.value))
       }
 
-      if(headerExtractedInfo.isTraceEnabled) {
+      // Future : putting message in ConcurrentSet
+      val future = Future {
         if(header.apiKey() == 0 || header.apiKey() == 1 || header.apiKey() == 8) {
-
-          //Check aggregation period
-          if(tempPeriod != ClientRequestAggregator.period){
-            tempPeriod = ClientRequestAggregator.period
-            headerExtractedInfo.trace("Aggregation Period has been changed to be " + tempPeriod.toString)
-            if(aggScheduler.isStarted){
-              aggScheduler.shutdown()
-              aggScheduler = null
-            }
-            aggScheduler = new KafkaScheduler(threads = 100, threadNamePrefix = "Log-Aggregation-")
-            aggScheduler.startup()
-            aggScheduler.schedule("ReqeustHeader-" + tempPeriod, task, tempPeriod, tempPeriod, unit = TimeUnit.SECONDS)
-          }
-
           val api_key = header.apiKey()
           val api_version = header.apiVersion()
           val client_id = header.clientId()
@@ -229,15 +238,31 @@ object RequestChannel extends Logging {
                   ""
                 }
               }
-            val strApiKey8 = "{ api_key:%d, api_version:%d, client_id:%s, topic:%s, ip:%s, consumer_group:%s }".format(
-              api_key, api_version, client_id, topic, ip, group_id)
+
+            val strApiKey8 = "{ api_key:%d, api_version:%d, client_id:%s, topic:%s, ip:%s, consumer_group:%s }".format(api_key, api_version, client_id, topic, ip, group_id)
             consumerHeaderInfos += strApiKey8
+
           } else {
-            val strApiKey1Or2 = "{ api_key:%d, api_version:%d, client_id:%s, topic:%s, ip:%s }".format(
-              api_key, api_version, client_id, topic, ip)
+
+            val strApiKey1Or2 = "{ api_key:%d, api_version:%d, client_id:%s, topic:%s, ip:%s }".format(api_key, api_version, client_id, topic, ip)
             consumerHeaderInfos += strApiKey1Or2
           }
         }
+      }
+
+      // Re-Schedule if period has been changed
+      if(tempPeriod != ClientRequestAggregator.period){
+
+        tempPeriod = ClientRequestAggregator.period
+        headerExtractedInfo.trace("Aggregation Period has been changed to be " + tempPeriod.toString)
+
+        terminateScheduler(aggScheduler)
+        aggScheduler = initiateSchedulerForAggregation(tempPeriod)
+      }
+
+      // Put message into Future
+      if(headerExtractedInfo.isTraceEnabled) {
+          Await.result(future, 10 second)
       }
     }
   }
