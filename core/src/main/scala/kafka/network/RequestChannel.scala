@@ -38,9 +38,9 @@ import org.apache.kafka.common.utils.Time
 import org.apache.log4j.Logger
 
 import scala.collection.JavaConverters._
-import scala.concurrent.duration._
-import scala.concurrent.{Await, Future}
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.Future
+import scala.util.Failure
 
 object RequestChannel extends Logging {
   val AllDone = Request(processor = 1, connectionId = "2", Session(KafkaPrincipal.ANONYMOUS, InetAddress.getLocalHost),
@@ -262,7 +262,9 @@ object RequestChannel extends Logging {
 
       // Put message into Future
       if(headerExtractedInfo.isTraceEnabled) {
-          Await.result(future, 10 second)
+          future.onComplete{
+            case Failure(e) => headerExtractedInfo.trace(e.getMessage)
+          }
       }
     }
   }
