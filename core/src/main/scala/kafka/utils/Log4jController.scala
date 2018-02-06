@@ -89,20 +89,20 @@ private class Log4jController extends Log4jControllerMBean {
     else false
   }
 
-  def setAggregationPeriod(t: String) = {
-    try {
-       ClientRequestAggregator.period = Integer.parseInt(t)
-    } catch {
-      case _: Exception => {
-        false
-      }
-    }
-    true
-  }
-
-  def getAggregationPeriod()  = {
-    ClientRequestAggregator.period.toString
-  }
+//  def setAggregationPeriod(t: String) = {
+//    try {
+//       ClientRequestAggregator.period = Integer.parseInt(t)
+//    } catch {
+//      case _: Exception => {
+//        false
+//      }
+//    }
+//    true
+//  }
+//
+//  def getAggregationPeriod()  = {
+//    ClientRequestAggregator.period.toString
+//  }
 
 }
 
@@ -111,7 +111,7 @@ private trait Log4jControllerMBean {
   def getLoggers: java.util.List[String]
   def getLogLevel(logger: String): String
   def setLogLevel(logger: String, level: String): Boolean
-  def setAggregationPeriod(t: String)
-  def getAggregationPeriod() : String
+//  def setAggregationPeriod(t: String)
+//  def getAggregationPeriod() : String
 }
 

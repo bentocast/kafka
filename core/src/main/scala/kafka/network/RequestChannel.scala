@@ -22,11 +22,12 @@ import java.nio.ByteBuffer
 import java.util.HashMap
 import java.util.concurrent.{TimeUnit, _}
 
+import com.agoda.adp.messaging.kafka.network.{ClientRequestAggregator, ClientRequestAggregatorScheduler, ClientRequestConsumer}
 import com.yammer.metrics.core.Gauge
 import kafka.api.{ControlledShutdownRequest, RequestOrResponse}
 import kafka.metrics.KafkaMetricsGroup
 import kafka.server.QuotaId
-import kafka.utils.{ClientRequestAggregator, KafkaScheduler, Logging}
+import kafka.utils.Logging
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.errors.InvalidRequestException
 import org.apache.kafka.common.network.{ListenerName, Send}
@@ -37,49 +38,16 @@ import org.apache.kafka.common.security.auth.KafkaPrincipal
 import org.apache.kafka.common.utils.Time
 import org.apache.log4j.Logger
 
-import scala.collection.JavaConverters._
-import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.Future
-import scala.util.Failure
-
 object RequestChannel extends Logging {
   val AllDone = Request(processor = 1, connectionId = "2", Session(KafkaPrincipal.ANONYMOUS, InetAddress.getLocalHost),
     buffer = getShutdownReceive, startTimeMs = 0, listenerName = new ListenerName(""),
     securityProtocol = SecurityProtocol.PLAINTEXT)
   private val requestLogger = Logger.getLogger("kafka.request.logger")
+
   private val headerExtractedInfo = Logger.getLogger("kafka.headerinfo.logger")
+  new ClientRequestAggregatorScheduler()
+  ClientRequestConsumer.getInstance().run()
 
-  // ConcurrentSet structure
-  def createSet[T]() = java.util.Collections.newSetFromMap(
-    new java.util.concurrent.ConcurrentHashMap[T, java.lang.Boolean]).asScala
-
-  // Global variable per Thread
-  private val consumerHeaderInfos = createSet[String]
-  private var tempPeriod = ClientRequestAggregator.period
-
-  // Thread handling
-  private def initiateSchedulerForAggregation(tempPeriod: Int): KafkaScheduler = {
-    var scheduler = new KafkaScheduler(threads = 100, threadNamePrefix = "Log-Aggregation-")
-    scheduler.startup()
-    scheduler.schedule("ReqeustHeader-" + tempPeriod, printAggregationLogTask, tempPeriod, tempPeriod, unit = TimeUnit.SECONDS)
-    headerExtractedInfo.trace("Aggregation Period is set to " + tempPeriod.toString)
-    scheduler
-  }
-
-  private def terminateScheduler(scheduler: KafkaScheduler){
-    if(scheduler.isStarted){
-      scheduler.shutdown()
-    }
-  }
-
-  private def printAggregationLogTask() {
-    // Print record out to TRACE of request.headerinfo logger and clear collection
-    headerExtractedInfo.trace("Aggregation Period is " + tempPeriod.toString)
-    consumerHeaderInfos.foreach(info => headerExtractedInfo.trace(info))
-    consumerHeaderInfos.clear()
-  }
-
-  var aggScheduler = initiateSchedulerForAggregation(tempPeriod)
 
   private def getShutdownReceive = {
     val emptyProduceRequest = new ProduceRequest.Builder(0, 0, new HashMap[TopicPartition, MemoryRecords]()).build()
@@ -196,80 +164,14 @@ object RequestChannel extends Logging {
               .format(requestDesc(detailsEnabled), connectionId, totalTime, requestQueueTime, apiLocalTime, apiRemoteTime, responseQueueTime, responseSendTime, securityProtocol, session.principal, listenerName.value))
       }
 
-      // Future : putting message in ConcurrentSet
-      val future = Future {
-        if(header.apiKey() == 0 || header.apiKey() == 1 || header.apiKey() == 8) {
-          val api_key = header.apiKey()
-          val api_version = header.apiVersion()
-          val client_id = header.clientId()
-
-          val topicPattern = "topic=(.\\w*)".r
-          val ipPattern = "(\\b(?:\\d{1,3}\\.){3}\\d{1,3}\\b)".r
-
-          val bodyString = body.toString
-
-          val topic =
-            try {
-              topicPattern.findAllMatchIn(bodyString).map(_.group(1)).toList.mkString(", ")
-            } catch {
-              case ex: Exception => {
-                headerExtractedInfo.trace(ex.printStackTrace())
-              }
-                ""
-            }
-
-          val ip =
-            try {
-              ipPattern.findAllMatchIn(connectionId).toList(1).toString
-            } catch {
-              case ex: Exception => {
-                headerExtractedInfo.trace(ex.printStackTrace())
-                ""
-              }
-            }
-
-          if (header.apiKey() == 8) {
-            val group_id =
-              try {
-                body.asInstanceOf[OffsetCommitRequest].groupId()
-              } catch {
-                case ex: Exception => {
-                  headerExtractedInfo.trace(ex.printStackTrace())
-                  ""
-                }
-              }
-
-            val strApiKey8 = "{ api_key:%d, api_version:%d, client_id:%s, topic:%s, ip:%s, consumer_group:%s }".format(api_key, api_version, client_id, topic, ip, group_id)
-            consumerHeaderInfos += strApiKey8
-
-          } else {
-
-            val strApiKey1Or2 = "{ api_key:%d, api_version:%d, client_id:%s, topic:%s, ip:%s }".format(api_key, api_version, client_id, topic, ip)
-            consumerHeaderInfos += strApiKey1Or2
-          }
-        }
-      }
-
-      // Re-Schedule if period has been changed
-      if(tempPeriod != ClientRequestAggregator.period){
-
-        tempPeriod = ClientRequestAggregator.period
-        headerExtractedInfo.trace("Aggregation Period has been changed to be " + tempPeriod.toString)
-
-        terminateScheduler(aggScheduler)
-        aggScheduler = initiateSchedulerForAggregation(tempPeriod)
-      }
-
-      // Put message into Future
       if(headerExtractedInfo.isTraceEnabled) {
-          future.onComplete{
-            case Failure(e) => headerExtractedInfo.trace(e.getMessage)
-          }
+        if(header.apiKey() == 0 || header.apiKey() == 1 || header.apiKey() == 8) {
+           ClientRequestAggregator.appendIntoQueue(header, body, connectionId)
+
+        }
       }
     }
   }
-
-
 
   case class Response(processor: Int, request: Request, responseSend: Send, responseAction: ResponseAction) {
     request.responseCompleteTimeMs = Time.SYSTEM.milliseconds
@@ -303,6 +205,16 @@ class RequestChannel(val numProcessors: Int, val queueSize: Int) extends KafkaMe
     new Gauge[Int] {
       def value = requestQueue.size
     }
+  )
+
+  newGauge( "overflowAggregationNum", new Gauge[Long] {
+      def value = ClientRequestAggregator.overflowAggregationNum
+    }
+  )
+
+  newGauge( "CurrentAggregationQueueSize", new Gauge[Long] {
+    def value = ClientRequestAggregator.consumerHeaderInfos.size()
+  }
   )
 
   newGauge("ResponseQueueSize", new Gauge[Int]{
