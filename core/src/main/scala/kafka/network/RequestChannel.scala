@@ -22,7 +22,7 @@ import java.nio.ByteBuffer
 import java.util.HashMap
 import java.util.concurrent.{TimeUnit, _}
 
-import com.agoda.adp.messaging.kafka.network.{ClientRequestAggregator, ClientRequestAggregatorScheduler, ClientRequestConsumer}
+import com.agoda.adp.messaging.kafka.network.{ClientFilterRequestAppender, ClientRequestAggregatorScheduler, ClientRequestConsumerPool}
 import com.yammer.metrics.core.Gauge
 import kafka.api.{ControlledShutdownRequest, RequestOrResponse}
 import kafka.metrics.KafkaMetricsGroup
@@ -46,7 +46,7 @@ object RequestChannel extends Logging {
 
   private val headerExtractedInfo = Logger.getLogger("kafka.headerinfo.logger")
   new ClientRequestAggregatorScheduler()
-  ClientRequestConsumer.getInstance().run()
+  ClientRequestConsumerPool
 
 
   private def getShutdownReceive = {
@@ -166,8 +166,7 @@ object RequestChannel extends Logging {
 
       if(headerExtractedInfo.isTraceEnabled) {
         if(header.apiKey() == 0 || header.apiKey() == 1 || header.apiKey() == 8) {
-           ClientRequestAggregator.appendIntoQueue(header, body, connectionId)
-
+           ClientFilterRequestAppender.appendIntoQueue(header, body, connectionId)
         }
       }
     }
@@ -208,12 +207,12 @@ class RequestChannel(val numProcessors: Int, val queueSize: Int) extends KafkaMe
   )
 
   newGauge( "overflowAggregationNum", new Gauge[Long] {
-      def value = ClientRequestAggregator.overflowAggregationNum
+      def value = ClientFilterRequestAppender.overflowAggregationNum
     }
   )
 
   newGauge( "CurrentAggregationQueueSize", new Gauge[Long] {
-    def value = ClientRequestAggregator.consumerHeaderInfos.size()
+    def value = ClientFilterRequestAppender.consumerHeaderInfos.size()
   }
   )
 

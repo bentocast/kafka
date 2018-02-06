@@ -1,6 +1,7 @@
 package com.agoda.adp.messaging.kafka.network
 
 import java.util.concurrent.TimeUnit
+
 import kafka.utils.KafkaScheduler
 import org.apache.log4j.Logger
 
@@ -13,7 +14,6 @@ class ClientRequestAggregatorScheduler {
     val scheduler = new KafkaScheduler(threads = 100, threadNamePrefix = "Log-Aggregation-")
     scheduler.startup()
     scheduler.schedule("ReqeustHeader-" + tempPeriod, printAggregationLogTask, tempPeriod, tempPeriod, unit = TimeUnit.SECONDS)
-//    headerExtractedInfo.trace("Aggregation Period is set to " + tempPeriod.toString)
     scheduler
   }
 
@@ -26,8 +26,11 @@ class ClientRequestAggregatorScheduler {
   private def printAggregationLogTask() {
     if(headerExtractedInfo.isTraceEnabled) {
       headerExtractedInfo.trace("Aggregation Period is " + tempPeriod.toString)
-//      if(!ClientRequestConsumer.instance.aggSet.isEmpty)
-//        ClientRequestConsumer.instance.aggSet.foreach( rec => headerExtractedInfo.trace(rec))
+      if(ClientAggregatorSelector.getSetAggregator().nonEmpty){
+        val temp = ClientAggregatorSelector.getSetAggregator()
+        ClientAggregatorSelector.isTimeToSwitch = true
+        temp.foreach(rec => headerExtractedInfo.trace(rec))
+      }
     }
   }
 }
