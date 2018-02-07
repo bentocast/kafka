@@ -20,9 +20,10 @@ package kafka.network
 import java.net.InetAddress
 import java.nio.ByteBuffer
 import java.util.HashMap
+import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.{TimeUnit, _}
 
-import com.agoda.adp.messaging.kafka.network.{ClientFilterRequestAppender, ClientRequestAggregatorScheduler, ClientRequestConsumerPool}
+import com.agoda.adp.messaging.kafka.network.{ClientAggregationController, ClientRequestFormatAppender}
 import com.yammer.metrics.core.Gauge
 import kafka.api.{ControlledShutdownRequest, RequestOrResponse}
 import kafka.metrics.KafkaMetricsGroup
@@ -43,11 +44,7 @@ object RequestChannel extends Logging {
     buffer = getShutdownReceive, startTimeMs = 0, listenerName = new ListenerName(""),
     securityProtocol = SecurityProtocol.PLAINTEXT)
   private val requestLogger = Logger.getLogger("kafka.request.logger")
-
   private val headerExtractedInfo = Logger.getLogger("kafka.headerinfo.logger")
-  new ClientRequestAggregatorScheduler()
-  ClientRequestConsumerPool
-
 
   private def getShutdownReceive = {
     val emptyProduceRequest = new ProduceRequest.Builder(0, 0, new HashMap[TopicPartition, MemoryRecords]()).build()
@@ -164,9 +161,11 @@ object RequestChannel extends Logging {
               .format(requestDesc(detailsEnabled), connectionId, totalTime, requestQueueTime, apiLocalTime, apiRemoteTime, responseQueueTime, responseSendTime, securityProtocol, session.principal, listenerName.value))
       }
 
-      if(headerExtractedInfo.isTraceEnabled) {
-        if(header.apiKey() == 0 || header.apiKey() == 1 || header.apiKey() == 8) {
-           ClientFilterRequestAppender.appendIntoQueue(header, body, connectionId)
+      if(ClientAggregationController.getEnable()) {
+        if(header.apiKey() == ApiKeys.OFFSET_COMMIT.id ||
+          header.apiKey() == ApiKeys.FETCH.id ||
+          header.apiKey() == ApiKeys.PRODUCE.id) {
+           ClientRequestFormatAppender.appendIntoQueue(header, body, connectionId)
         }
       }
     }
@@ -206,13 +205,13 @@ class RequestChannel(val numProcessors: Int, val queueSize: Int) extends KafkaMe
     }
   )
 
-  newGauge( "overflowAggregationNum", new Gauge[Long] {
-      def value = ClientFilterRequestAppender.overflowAggregationNum
+  newGauge( "overflowAggregationNum", new Gauge[AtomicLong] {
+      def value = ClientRequestFormatAppender.overflowAggregationNum
     }
   )
 
   newGauge( "CurrentAggregationQueueSize", new Gauge[Long] {
-    def value = ClientFilterRequestAppender.consumerHeaderInfos.size()
+    def value = ClientRequestFormatAppender.consumerHeaderInfo.size()
   }
   )
 

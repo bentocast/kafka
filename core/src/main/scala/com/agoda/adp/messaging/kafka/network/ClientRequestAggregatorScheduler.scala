@@ -5,36 +5,29 @@ import java.util.concurrent.TimeUnit
 import kafka.utils.KafkaScheduler
 import org.apache.log4j.Logger
 
-class ClientRequestAggregatorScheduler {
-  final val DEFAULT_PERIOD = 5
+class ClientRequestAggregatorScheduler(timeToSchedule: Int) {
   private val headerExtractedInfo = Logger.getLogger("kafka.headerinfo.logger")
-  var period = DEFAULT_PERIOD
-  private var tempPeriod = period
-  private var aggScheduler = {
-    val scheduler = new KafkaScheduler(threads = 100, threadNamePrefix = "Log-Aggregation-")
-    scheduler.startup()
-    scheduler.schedule("ReqeustHeader-" + tempPeriod, printAggregationLogTask, tempPeriod, tempPeriod, unit = TimeUnit.SECONDS)
-    scheduler
-  }
 
-  private def terminateScheduler(scheduler: KafkaScheduler){
+  //TODO Use only 1 thread to write TRACE LOG
+  val scheduler = new KafkaScheduler(threads = 1, threadNamePrefix = "Log-PrintingRequestLogAggregation-")
+  scheduler.startup()
+  scheduler.schedule("PrintingRequestLogAggregation-" + timeToSchedule, printAggregationSetTask, timeToSchedule, timeToSchedule, unit = TimeUnit.SECONDS)
+
+  def shutdown(){
     if(scheduler.isStarted){
       scheduler.shutdown()
     }
   }
 
-  private def printAggregationLogTask() {
+  private def printAggregationSetTask() {
     if(headerExtractedInfo.isTraceEnabled) {
-      headerExtractedInfo.trace("Aggregation Period is " + tempPeriod.toString)
-      if(ClientAggregatorSelector.getSetAggregator().nonEmpty){
-        val temp = ClientAggregatorSelector.getSetAggregator()
-        ClientAggregatorSelector.isTimeToSwitch = true
-        temp.foreach(rec => headerExtractedInfo.trace(rec))
+      headerExtractedInfo.debug("Aggregation Period: " + timeToSchedule.toString)
+      headerExtractedInfo.debug("#numThread: " + ClientAggregationController.numberOfThread)
+      val snapshot = ClientAggregatorSet.takeAggregationSet()
+      if(snapshot.nonEmpty){
+        snapshot.foreach(rec => headerExtractedInfo.trace(rec))
       }
+      ClientAggregatorSet.clearAggregationSet()
     }
   }
-}
-
-object ClientRequestAggregatorScheduler {
-  private val instance: ClientRequestAggregatorScheduler = new ClientRequestAggregatorScheduler()
 }
