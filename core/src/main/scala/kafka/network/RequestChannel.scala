@@ -23,7 +23,7 @@ import java.util.HashMap
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.{TimeUnit, _}
 
-import com.agoda.adp.messaging.kafka.network.{ClientAggregationController, ClientRequestFormatAppender}
+import com.agoda.adp.messaging.kafka.network.ClientRequestFormatAppender
 import com.yammer.metrics.core.Gauge
 import kafka.api.{ControlledShutdownRequest, RequestOrResponse}
 import kafka.metrics.KafkaMetricsGroup
@@ -161,13 +161,12 @@ object RequestChannel extends Logging {
               .format(requestDesc(detailsEnabled), connectionId, totalTime, requestQueueTime, apiLocalTime, apiRemoteTime, responseQueueTime, responseSendTime, securityProtocol, session.principal, listenerName.value))
       }
 
-      if(ClientAggregationController.getEnable()) {
-        if(header.apiKey() == ApiKeys.OFFSET_COMMIT.id ||
-          header.apiKey() == ApiKeys.FETCH.id ||
-          header.apiKey() == ApiKeys.PRODUCE.id) {
-           ClientRequestFormatAppender.appendIntoQueue(header, body, connectionId)
-        }
+      if(header.apiKey() == ApiKeys.OFFSET_COMMIT.id ||
+        header.apiKey() == ApiKeys.FETCH.id ||
+        header.apiKey() == ApiKeys.PRODUCE.id) {
+         ClientRequestFormatAppender.appendIntoQueue(header, body, connectionId)
       }
+
     }
   }
 
@@ -211,7 +210,7 @@ class RequestChannel(val numProcessors: Int, val queueSize: Int) extends KafkaMe
   )
 
   newGauge( "CurrentAggregationQueueSize", new Gauge[Long] {
-    def value = ClientRequestFormatAppender.consumerHeaderInfo.size()
+    def value = ClientRequestFormatAppender.headerInfoIncomingQueue.size()
   }
   )
 

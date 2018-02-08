@@ -16,9 +16,9 @@ object ClientAggregationController {
   var cScheduler: ClientRequestAggregatorScheduler = null
 
   def getEnable(): Boolean ={
-    inLock(ClientAggregationController.controllerLock) {
+//    inLock(ClientAggregationController.controllerLock) {
       isEnabled
-    }
+//    }
   }
 
   def setEnable(t: Boolean) {
@@ -30,6 +30,10 @@ object ClientAggregationController {
   def start() {
     inLock(ClientAggregationController.controllerLock) {
       if(!isEnabled) {
+        //TODO clear all queues !!!
+        ClientRequestFormatAppender.clearIncomingQeue()
+        ClientAggregatorSet.clearAggregationSet()
+
         cPool = new ClientRequestConsumerPool(numberOfThread)
         cPool.run()
         cScheduler = new ClientRequestAggregatorScheduler(printTraceLogPeriod)
