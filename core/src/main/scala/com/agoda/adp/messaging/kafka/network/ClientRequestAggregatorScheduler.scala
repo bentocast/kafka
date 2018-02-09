@@ -6,9 +6,9 @@ import kafka.utils.KafkaScheduler
 import org.apache.log4j.Logger
 
 class ClientRequestAggregatorScheduler(timeToSchedule: Int) {
-  private val headerExtractedInfo = Logger.getLogger("kafka.headerinfo.logger")
+  //TODO Use only 1 thread to write result LOG
 
-  //TODO Use only 1 thread to write TRACE LOG
+  private val headerExtractedInfo = Logger.getLogger("kafka.headerinfo.logger")
   val scheduler = new KafkaScheduler(threads = 1, threadNamePrefix = "Log-PrintingRequestLogAggregation-")
   scheduler.startup()
   scheduler.schedule("PrintingRequestLogAggregation-" + timeToSchedule, printAggregationSetTask, timeToSchedule, timeToSchedule, unit = TimeUnit.SECONDS)
@@ -21,11 +21,12 @@ class ClientRequestAggregatorScheduler(timeToSchedule: Int) {
 
   private def printAggregationSetTask() {
     if(headerExtractedInfo.isTraceEnabled) {
-      headerExtractedInfo.debug("Aggregation Period: " + timeToSchedule.toString)
+      headerExtractedInfo.debug("#timeToPrint: " + timeToSchedule.toString)
       headerExtractedInfo.debug("#numThread: " + ClientAggregationController.numberOfThread)
       val snapshot = ClientAggregatorSet.takeAggregationSet()
       if(snapshot.nonEmpty){
-        snapshot.foreach(rec => headerExtractedInfo.trace(rec))
+        headerExtractedInfo.debug("#total: " + snapshot.size)
+        snapshot.foreach(rec => headerExtractedInfo.info(rec))
       }
       ClientAggregatorSet.clearAggregationSet()
     }

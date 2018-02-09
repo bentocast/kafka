@@ -3,8 +3,10 @@ package com.agoda.adp.messaging.kafka.network
 import java.util.concurrent.locks.ReentrantLock
 
 import kafka.utils.CoreUtils.inLock
+import org.apache.log4j.Logger
 
 object ClientAggregationController {
+  private val headerExtractedInfo = Logger.getLogger("kafka.headerinfo.logger")
   private val controllerLock: ReentrantLock = new ReentrantLock()
   final val DEFAULT_THREAD = 3
   final val DEFAULT_PERIOD = 10
@@ -16,9 +18,7 @@ object ClientAggregationController {
   var cScheduler: ClientRequestAggregatorScheduler = null
 
   def getEnable(): Boolean ={
-//    inLock(ClientAggregationController.controllerLock) {
       isEnabled
-//    }
   }
 
   def setEnable(t: Boolean) {
@@ -30,7 +30,7 @@ object ClientAggregationController {
   def start() {
     inLock(ClientAggregationController.controllerLock) {
       if(!isEnabled) {
-        //TODO clear all queues !!!
+        //TODO clear all collections before start
         ClientRequestFormatAppender.clearIncomingQeue()
         ClientAggregatorSet.clearAggregationSet()
 
@@ -38,6 +38,7 @@ object ClientAggregationController {
         cPool.run()
         cScheduler = new ClientRequestAggregatorScheduler(printTraceLogPeriod)
         isEnabled = true
+        headerExtractedInfo.debug("Started ...")
       }
     }
   }
@@ -47,6 +48,7 @@ object ClientAggregationController {
       if (cPool != null) cPool.shutdown()
       if (cScheduler != null) cScheduler.shutdown()
       isEnabled = false
+      headerExtractedInfo.debug("Shutdown Completed !!")
     }
   }
 

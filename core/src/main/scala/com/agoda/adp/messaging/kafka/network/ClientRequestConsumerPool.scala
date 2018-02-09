@@ -27,11 +27,8 @@ class ClientRequestConsumerPool(numThreads: Int) {
   def shutdown() {
     pool.shutdown()
     try {
-      if(!pool.awaitTermination(10, TimeUnit.SECONDS)){
-        pool.shutdownNow()
-        if(!pool.awaitTermination(10, TimeUnit.SECONDS)){
-          headerExtractedInfo.debug("ClientRequestConsumerPool did not terminate")
-        }
+      while(!pool.awaitTermination(10, TimeUnit.SECONDS)){
+          headerExtractedInfo.debug("Awaiting completion of ClientRequestConsumerPool")
       }
     } catch {
       case e: InterruptedException => {
@@ -54,7 +51,7 @@ class processHandler() extends Runnable {
         ClientAggregatorSet.aggSet
           .add(ClientRequestFormatAppender.headerInfoIncomingQueue.take())
     } catch {
-      //TODO Not print out
+      //TODO if found execption, skipping
       case e: Exception =>
     }
   }

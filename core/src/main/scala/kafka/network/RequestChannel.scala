@@ -39,6 +39,9 @@ import org.apache.kafka.common.security.auth.KafkaPrincipal
 import org.apache.kafka.common.utils.Time
 import org.apache.log4j.Logger
 
+import scala.collection.JavaConverters._
+import scala.collection.mutable
+
 object RequestChannel extends Logging {
   val AllDone = Request(processor = 1, connectionId = "2", Session(KafkaPrincipal.ANONYMOUS, InetAddress.getLocalHost),
     buffer = getShutdownReceive, startTimeMs = 0, listenerName = new ListenerName(""),
@@ -113,6 +116,35 @@ object RequestChannel extends Logging {
 
     trace("Processor %d received request : %s".format(processor, requestDesc(true)))
 
+    //TODO if there is any needed request, save topicPartitionSets and groupId
+    val topicPartitionSets: mutable.Set[TopicPartition] = if(header.apiKey() == ApiKeys.OFFSET_COMMIT.id ||
+      header.apiKey() == ApiKeys.FETCH.id ||
+      header.apiKey() == ApiKeys.PRODUCE.id) {
+      try {
+        header.apiKey() match {
+          case ApiKeys.OFFSET_COMMIT.id => body.asInstanceOf[OffsetCommitRequest].offsetData().keySet().asScala
+          case ApiKeys.FETCH.id => body.asInstanceOf[FetchRequest].fetchData().keySet().asScala
+          case ApiKeys.PRODUCE.id => body.asInstanceOf[ProduceRequest].partitionRecordsOrFail().keySet().asScala
+        }
+      } catch {
+        case ex: Exception => headerExtractedInfo.debug("Could not extract Topics: Exception: " + ex.getMessage)
+          null
+      }
+    } else {
+      null
+    }
+
+    val groupId : String  = if (header.apiKey == ApiKeys.OFFSET_COMMIT.id) {
+      try {
+        body.asInstanceOf[OffsetCommitRequest].groupId
+      } catch {
+        case ex: Exception => headerExtractedInfo.debug("Could not extract GroupId: Exception: " + ex.getMessage)
+          ""
+      }
+    } else {
+      ""
+    }
+
     def updateRequestMetrics() {
       val endTimeMs = Time.SYSTEM.milliseconds
       // In some corner cases, apiLocalCompleteTimeMs may not be set when the request completes if the remote
@@ -161,10 +193,16 @@ object RequestChannel extends Logging {
               .format(requestDesc(detailsEnabled), connectionId, totalTime, requestQueueTime, apiLocalTime, apiRemoteTime, responseQueueTime, responseSendTime, securityProtocol, session.principal, listenerName.value))
       }
 
+      //TODO if there is any needed request, appendIntoQueue
       if(header.apiKey() == ApiKeys.OFFSET_COMMIT.id ||
         header.apiKey() == ApiKeys.FETCH.id ||
         header.apiKey() == ApiKeys.PRODUCE.id) {
-         ClientRequestFormatAppender.appendIntoQueue(header, body, connectionId)
+
+        val apiKey = header.apiKey()
+        val apiVersion = header.apiVersion()
+        val clientId = header.clientId()
+
+        ClientRequestFormatAppender.appendIntoQueue(apiKey, apiVersion, clientId, topicPartitionSets, connectionId, groupId)
       }
 
     }
