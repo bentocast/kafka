@@ -9,7 +9,7 @@ object ClientAggregationController {
   private val headerExtractedInfo = Logger.getLogger("kafka.headerinfo.logger")
   private val controllerLock: ReentrantLock = new ReentrantLock()
   final val DEFAULT_THREAD = 3
-  final val DEFAULT_PERIOD = 10
+  final val DEFAULT_PERIOD = 600
   private var isEnabled = false
   var numberOfThread = DEFAULT_THREAD
   var printTraceLogPeriod = DEFAULT_PERIOD

@@ -28,7 +28,6 @@ class ClientRequestAggregatorScheduler(timeToSchedule: Int) {
         headerExtractedInfo.debug("#total: " + snapshot.size)
         snapshot.foreach(rec => headerExtractedInfo.info(rec))
       }
-      ClientAggregatorSet.clearAggregationSet()
     }
   }
 }
