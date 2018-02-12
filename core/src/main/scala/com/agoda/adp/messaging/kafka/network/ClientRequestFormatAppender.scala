@@ -32,10 +32,10 @@ object ClientRequestFormatAppender {
           connectionId.split("-")(1).split(":")(0)
         } catch {
           case ex: Exception => headerExtractedInfo.debug("Could not extract IP from 'connectionId' Exception: " + ex.getMessage)
-            ""
+            "unknown"
         }
       } else {
-        ""
+        "unknown"
       }
 
       val topics = if(topicPartitionSets != null){
@@ -47,7 +47,7 @@ object ClientRequestFormatAppender {
         }
         mutable.SortedSet(topicSets.toList: _*).mkString(",")
       } else {
-        ""
+        "unknown"
       }
 
       if (apiKey == ApiKeys.OFFSET_COMMIT.id) {

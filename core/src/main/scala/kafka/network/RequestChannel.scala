@@ -139,10 +139,10 @@ object RequestChannel extends Logging {
         body.asInstanceOf[OffsetCommitRequest].groupId
       } catch {
         case ex: Exception => headerExtractedInfo.debug("Could not extract GroupId: Exception: " + ex.getMessage)
-          ""
+          "unknown"
       }
     } else {
-      ""
+      "unknown"
     }
 
     def updateRequestMetrics() {
