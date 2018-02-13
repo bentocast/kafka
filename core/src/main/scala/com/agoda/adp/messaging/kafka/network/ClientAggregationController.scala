@@ -8,9 +8,9 @@ import org.apache.log4j.Logger
 object ClientAggregationController {
   private val headerExtractedInfo = Logger.getLogger("kafka.headerinfo.logger")
   private val controllerLock: ReentrantLock = new ReentrantLock()
-  final val DEFAULT_THREAD = 3
+  final val DEFAULT_THREAD = 1
   final val DEFAULT_PERIOD = 600
-  private var isEnabled = false
+  @volatile private var isEnabled = false
   var numberOfThread = DEFAULT_THREAD
   var printTraceLogPeriod = DEFAULT_PERIOD
 
@@ -47,6 +47,11 @@ object ClientAggregationController {
     inLock(ClientAggregationController.controllerLock) {
       if (cPool != null) cPool.shutdown()
       if (cScheduler != null) cScheduler.shutdown()
+
+      //TODO Defensive check
+      cPool = null
+      cScheduler = null
+
       isEnabled = false
       headerExtractedInfo.debug("Shutdown Completed !!")
     }

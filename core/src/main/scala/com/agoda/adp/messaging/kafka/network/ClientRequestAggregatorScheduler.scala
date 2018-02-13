@@ -20,7 +20,7 @@ class ClientRequestAggregatorScheduler(timeToSchedule: Int) {
   }
 
   private def printAggregationSetTask() {
-    if(headerExtractedInfo.isTraceEnabled) {
+    if(ClientAggregationController.getEnable()) {
       headerExtractedInfo.debug("#timeToPrint: " + timeToSchedule.toString)
       headerExtractedInfo.debug("#numThread: " + ClientAggregationController.numberOfThread)
       val snapshot = ClientAggregatorSet.takeAggregationSet()

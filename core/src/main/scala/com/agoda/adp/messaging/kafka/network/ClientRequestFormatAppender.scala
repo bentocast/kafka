@@ -4,7 +4,6 @@ import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.locks.ReentrantLock
 
-import kafka.utils.CoreUtils.inLock
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.protocol.ApiKeys
 import org.apache.log4j.Logger
@@ -73,8 +72,6 @@ object ClientRequestFormatAppender {
   }
 
   def clearIncomingQeue() {
-    inLock(ClientRequestFormatAppender.appenderLock){
-      headerInfoIncomingQueue.clear()
-    }
+    headerInfoIncomingQueue.clear()
   }
 }

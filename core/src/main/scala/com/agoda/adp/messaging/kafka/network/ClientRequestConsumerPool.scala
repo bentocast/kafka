@@ -27,8 +27,12 @@ class ClientRequestConsumerPool(numThreads: Int) {
   def shutdown() {
     pool.shutdown()
     try {
-      while(!pool.awaitTermination(10, TimeUnit.SECONDS)){
+      if(!pool.awaitTermination(10, TimeUnit.SECONDS)){
           headerExtractedInfo.debug("Awaiting completion of ClientRequestConsumerPool")
+      }
+      pool.shutdownNow()
+      if(!pool.awaitTermination(10, TimeUnit.SECONDS)){
+        headerExtractedInfo.debug("Pool did not terminate")
       }
     } catch {
       case e: InterruptedException => {
@@ -40,9 +44,14 @@ class ClientRequestConsumerPool(numThreads: Int) {
 }
 
 class processHandler() extends Runnable {
+  private val headerExtractedInfo = Logger.getLogger("kafka.headerinfo.logger")
   override def run() = {
-    while (true) {
-      addIntoAggregationSet()
+    try{
+      while (true) {
+        addIntoAggregationSet()
+      }
+    } catch {
+      case ex: InterruptedException => headerExtractedInfo.debug("ProcessHadler was shutdown")
     }
   }
 
@@ -51,8 +60,8 @@ class processHandler() extends Runnable {
         ClientAggregatorSet.aggSet
           .add(ClientRequestFormatAppender.headerInfoIncomingQueue.take())
     } catch {
-      //TODO if found execption, skipping
-      case e: Exception =>
+      case ex: InterruptedException => throw ex
+      case e: Exception => headerExtractedInfo.error("Add into aggregation set found exception, e: " + e.getMessage)
     }
   }
 }
