@@ -10,12 +10,9 @@ class ClientRequestConsumerPool(numThreads: Int) {
   private val pool: ExecutorService = Executors.newFixedThreadPool(numThreads)
 
   def run() {
-    headerExtractedInfo.debug("Size of ThreadPool: " + numThreads)
     try {
-      for(i <- 1 to numThreads){
-        headerExtractedInfo.debug("Spawn #Thread: " + i)
+        headerExtractedInfo.debug("Spawn #ConsumerThread")
         pool.execute(new processHandler())
-      }
     } catch {
       case ex: Exception => {
         headerExtractedInfo.debug(ex.printStackTrace())

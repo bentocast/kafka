@@ -11,7 +11,7 @@ object ClientAggregatorSet {
   private val headerExtractedInfo = Logger.getLogger("kafka.headerinfo.logger")
   private val aggregatorLock: ReentrantLock = new ReentrantLock()
 
-  var aggSet: mutable.HashSet[String] = new mutable.HashSet[String]()
+  @volatile var aggSet: mutable.HashSet[String] = new mutable.HashSet[String]()
 
   def takeAggregationSet(): mutable.HashSet[String] = {
     headerExtractedInfo.debug("ClientAggregatorSet STATUS: " + ClientAggregatorSet.aggregatorLock.isLocked.toString)

@@ -122,22 +122,6 @@ private class Log4jController extends Log4jControllerMBean {
   def getAggregationPeriod()  = {
     ClientAggregationController.printTraceLogPeriod.toString
   }
-
-  def setNumberOfThreadConsumer(t: String) = {
-    try {
-      val value = Integer.parseInt(t)
-      if(value > 0){
-        ClientAggregationController.numberOfThread = value
-        ClientAggregationController.restart()
-      }
-    } catch {
-      case ex: Exception => Logger.getLogger("kafka.headerinfo.logger").debug("Error on set numberOfThread Consumer: " + ex.printStackTrace())
-    }
-  }
-
-  def getNumberOfThreadConsumer() = {
-    ClientAggregationController.numberOfThread.toString
-  }
 }
 
 private trait Log4jControllerMBean {
@@ -148,7 +132,5 @@ private trait Log4jControllerMBean {
   def setEnableAggregationLog(t: String)
   def getAggregationPeriod() : String
   def setAggregationPeriod(t: String)
-  def getNumberOfThreadConsumer() : String
-  def setNumberOfThreadConsumer(t: String)
 }
 
