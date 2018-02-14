@@ -8,13 +8,12 @@ import org.apache.log4j.Logger
 object ClientAggregationController {
   private val headerExtractedInfo = Logger.getLogger("kafka.headerinfo.logger")
   private val controllerLock: ReentrantLock = new ReentrantLock()
-  final val DEFAULT_THREAD = 1
   final val DEFAULT_PERIOD = 600
+
   @volatile private var isEnabled = false
-  var numberOfThread = DEFAULT_THREAD
   var printTraceLogPeriod = DEFAULT_PERIOD
 
-  var cPool: ClientRequestConsumerPool = null
+  var cPool: ClientRequestConsumer = null
   var cScheduler: ClientRequestAggregatorScheduler = null
 
   def getEnable(): Boolean ={
@@ -34,7 +33,7 @@ object ClientAggregationController {
         ClientRequestFormatAppender.clearIncomingQeue()
         ClientAggregatorSet.clearAggregationSet()
 
-        cPool = new ClientRequestConsumerPool(numberOfThread)
+        cPool = new ClientRequestConsumer()
         cPool.run()
         cScheduler = new ClientRequestAggregatorScheduler(printTraceLogPeriod)
         isEnabled = true

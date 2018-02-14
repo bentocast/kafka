@@ -4,10 +4,10 @@ import java.util.concurrent.{ExecutorService, Executors, TimeUnit}
 
 import org.apache.log4j.Logger
 
-class ClientRequestConsumerPool(numThreads: Int) {
+class ClientRequestConsumer() {
   //TODO Excutor implemetation
   private val headerExtractedInfo = Logger.getLogger("kafka.headerinfo.logger")
-  private val pool: ExecutorService = Executors.newFixedThreadPool(numThreads)
+  private val pool: ExecutorService = Executors.newFixedThreadPool(1)
 
   def run() {
     try {
