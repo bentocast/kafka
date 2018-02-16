@@ -202,17 +202,18 @@ object RequestChannel extends Logging {
       }
 
       //TODO if there is any needed request, appendIntoQueue
-      if(header.apiKey() == ApiKeys.OFFSET_COMMIT.id ||
-        header.apiKey() == ApiKeys.FETCH.id ||
-        header.apiKey() == ApiKeys.PRODUCE.id) {
+      if (header != null) {
+        if(header.apiKey() == ApiKeys.OFFSET_COMMIT.id ||
+          header.apiKey() == ApiKeys.FETCH.id ||
+          header.apiKey() == ApiKeys.PRODUCE.id) {
 
-        val apiKey = header.apiKey()
-        val apiVersion = header.apiVersion()
-        val clientId = header.clientId()
+          val apiKey = header.apiKey()
+          val apiVersion = header.apiVersion()
+          val clientId = header.clientId()
 
-        ClientRequestFormatAppender.appendIntoQueue(apiKey, apiVersion, clientId, topicPartitionSets, connectionId, groupId)
+          ClientRequestFormatAppender.appendIntoQueue(apiKey, apiVersion, clientId, topicPartitionSets, connectionId, groupId)
+        }
       }
-
     }
   }
 
