@@ -117,29 +117,37 @@ object RequestChannel extends Logging {
     trace("Processor %d received request : %s".format(processor, requestDesc(true)))
 
     //TODO if there is any needed request, save topicPartitionSets and groupId
-    val topicPartitionSets: mutable.Set[TopicPartition] = if(header.apiKey() == ApiKeys.OFFSET_COMMIT.id ||
-      header.apiKey() == ApiKeys.FETCH.id ||
-      header.apiKey() == ApiKeys.PRODUCE.id) {
-      try {
-        header.apiKey() match {
-          case ApiKeys.OFFSET_COMMIT.id => body.asInstanceOf[OffsetCommitRequest].offsetData().keySet().asScala
-          case ApiKeys.FETCH.id => body.asInstanceOf[FetchRequest].fetchData().keySet().asScala
-          case ApiKeys.PRODUCE.id => body.asInstanceOf[ProduceRequest].partitionRecordsOrFail().keySet().asScala
+    val topicPartitionSets: mutable.Set[TopicPartition] = if (header != null) {
+      if (header.apiKey() == ApiKeys.OFFSET_COMMIT.id ||
+        header.apiKey() == ApiKeys.FETCH.id ||
+        header.apiKey() == ApiKeys.PRODUCE.id) {
+        try {
+          header.apiKey() match {
+            case ApiKeys.OFFSET_COMMIT.id => body.asInstanceOf[OffsetCommitRequest].offsetData().keySet().asScala
+            case ApiKeys.FETCH.id => body.asInstanceOf[FetchRequest].fetchData().keySet().asScala
+            case ApiKeys.PRODUCE.id => body.asInstanceOf[ProduceRequest].partitionRecordsOrFail().keySet().asScala
+          }
+        } catch {
+          case ex: Exception => headerExtractedInfo.debug("Could not extract Topics: Exception: " + ex.getMessage)
+            null
         }
-      } catch {
-        case ex: Exception => headerExtractedInfo.debug("Could not extract Topics: Exception: " + ex.getMessage)
-          null
+      } else {
+        null
       }
     } else {
       null
     }
 
-    val groupId : String  = if (header.apiKey == ApiKeys.OFFSET_COMMIT.id) {
-      try {
-        body.asInstanceOf[OffsetCommitRequest].groupId
-      } catch {
-        case ex: Exception => headerExtractedInfo.debug("Could not extract GroupId: Exception: " + ex.getMessage)
-          "unknown"
+    val groupId: String = if (header != null) {
+      if (header.apiKey == ApiKeys.OFFSET_COMMIT.id) {
+        try {
+          body.asInstanceOf[OffsetCommitRequest].groupId
+        } catch {
+          case ex: Exception => headerExtractedInfo.debug("Could not extract GroupId: Exception: " + ex.getMessage)
+            "unknown"
+        }
+      } else {
+        "unknown"
       }
     } else {
       "unknown"
