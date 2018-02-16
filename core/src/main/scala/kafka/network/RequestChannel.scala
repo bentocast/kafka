@@ -20,8 +20,10 @@ package kafka.network
 import java.net.InetAddress
 import java.nio.ByteBuffer
 import java.util.HashMap
-import java.util.concurrent._
+import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.{TimeUnit, _}
 
+import com.agoda.adp.messaging.kafka.network.ClientRequestFormatAppender
 import com.yammer.metrics.core.Gauge
 import kafka.api.{ControlledShutdownRequest, RequestOrResponse}
 import kafka.metrics.KafkaMetricsGroup
@@ -37,11 +39,15 @@ import org.apache.kafka.common.security.auth.KafkaPrincipal
 import org.apache.kafka.common.utils.Time
 import org.apache.log4j.Logger
 
+import scala.collection.JavaConverters._
+import scala.collection.mutable
+
 object RequestChannel extends Logging {
   val AllDone = Request(processor = 1, connectionId = "2", Session(KafkaPrincipal.ANONYMOUS, InetAddress.getLocalHost),
     buffer = getShutdownReceive, startTimeMs = 0, listenerName = new ListenerName(""),
     securityProtocol = SecurityProtocol.PLAINTEXT)
   private val requestLogger = Logger.getLogger("kafka.request.logger")
+  private val headerExtractedInfo = Logger.getLogger("kafka.headerinfo.logger")
 
   private def getShutdownReceive = {
     val emptyProduceRequest = new ProduceRequest.Builder(0, 0, new HashMap[TopicPartition, MemoryRecords]()).build()
@@ -110,6 +116,43 @@ object RequestChannel extends Logging {
 
     trace("Processor %d received request : %s".format(processor, requestDesc(true)))
 
+    //TODO if there is any needed request, save topicPartitionSets and groupId
+    val topicPartitionSets: mutable.Set[TopicPartition] = if (header != null) {
+      if (header.apiKey() == ApiKeys.OFFSET_COMMIT.id ||
+        header.apiKey() == ApiKeys.FETCH.id ||
+        header.apiKey() == ApiKeys.PRODUCE.id) {
+        try {
+          header.apiKey() match {
+            case ApiKeys.OFFSET_COMMIT.id => body.asInstanceOf[OffsetCommitRequest].offsetData().keySet().asScala
+            case ApiKeys.FETCH.id => body.asInstanceOf[FetchRequest].fetchData().keySet().asScala
+            case ApiKeys.PRODUCE.id => body.asInstanceOf[ProduceRequest].partitionRecordsOrFail().keySet().asScala
+          }
+        } catch {
+          case ex: Exception => headerExtractedInfo.debug("Could not extract Topics: Exception: " + ex.getMessage)
+            null
+        }
+      } else {
+        null
+      }
+    } else {
+      null
+    }
+
+    val groupId: String = if (header != null) {
+      if (header.apiKey == ApiKeys.OFFSET_COMMIT.id) {
+        try {
+          body.asInstanceOf[OffsetCommitRequest].groupId
+        } catch {
+          case ex: Exception => headerExtractedInfo.debug("Could not extract GroupId: Exception: " + ex.getMessage)
+            "unknown"
+        }
+      } else {
+        "unknown"
+      }
+    } else {
+      "unknown"
+    }
+
     def updateRequestMetrics() {
       val endTimeMs = Time.SYSTEM.milliseconds
       // In some corner cases, apiLocalCompleteTimeMs may not be set when the request completes if the remote
@@ -154,8 +197,22 @@ object RequestChannel extends Logging {
 
       if (requestLogger.isDebugEnabled) {
         val detailsEnabled = requestLogger.isTraceEnabled
-        requestLogger.trace("Completed request:%s from connection %s;totalTime:%d,requestQueueTime:%d,localTime:%d,remoteTime:%d,responseQueueTime:%d,sendTime:%d,securityProtocol:%s,principal:%s,listener:%s"
-          .format(requestDesc(detailsEnabled), connectionId, totalTime, requestQueueTime, apiLocalTime, apiRemoteTime, responseQueueTime, responseSendTime, securityProtocol, session.principal, listenerName.value))
+            requestLogger.trace("Completed request:%s from connection %s;totalTime:%d,requestQueueTime:%d,localTime:%d,remoteTime:%d,responseQueueTime:%d,sendTime:%d,securityProtocol:%s,principal:%s,listener:%s"
+              .format(requestDesc(detailsEnabled), connectionId, totalTime, requestQueueTime, apiLocalTime, apiRemoteTime, responseQueueTime, responseSendTime, securityProtocol, session.principal, listenerName.value))
+      }
+
+      //TODO if there is any needed request, appendIntoQueue
+      if (header != null) {
+        if(header.apiKey() == ApiKeys.OFFSET_COMMIT.id ||
+          header.apiKey() == ApiKeys.FETCH.id ||
+          header.apiKey() == ApiKeys.PRODUCE.id) {
+
+          val apiKey = header.apiKey()
+          val apiVersion = header.apiVersion()
+          val clientId = header.clientId()
+
+          ClientRequestFormatAppender.appendIntoQueue(apiKey, apiVersion, clientId, topicPartitionSets, connectionId, groupId)
+        }
       }
     }
   }
@@ -183,6 +240,7 @@ class RequestChannel(val numProcessors: Int, val queueSize: Int) extends KafkaMe
   private var responseListeners: List[(Int) => Unit] = Nil
   private val requestQueue = new ArrayBlockingQueue[RequestChannel.Request](queueSize)
   private val responseQueues = new Array[BlockingQueue[RequestChannel.Response]](numProcessors)
+
   for(i <- 0 until numProcessors)
     responseQueues(i) = new LinkedBlockingQueue[RequestChannel.Response]()
 
@@ -191,6 +249,16 @@ class RequestChannel(val numProcessors: Int, val queueSize: Int) extends KafkaMe
     new Gauge[Int] {
       def value = requestQueue.size
     }
+  )
+
+  newGauge( "overflowAggregationNum", new Gauge[AtomicLong] {
+      def value = ClientRequestFormatAppender.overflowAggregationNum
+    }
+  )
+
+  newGauge( "CurrentAggregationQueueSize", new Gauge[Long] {
+    def value = ClientRequestFormatAppender.headerInfoIncomingQueue.size()
+  }
   )
 
   newGauge("ResponseQueueSize", new Gauge[Int]{
@@ -256,6 +324,7 @@ class RequestChannel(val numProcessors: Int, val queueSize: Int) extends KafkaMe
     requestQueue.clear()
   }
 }
+
 
 object RequestMetrics {
   val metricsMap = new scala.collection.mutable.HashMap[String, RequestMetrics]
