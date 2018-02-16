@@ -18,9 +18,11 @@
 package kafka.utils
 
 
-import org.apache.log4j.{Logger, Level, LogManager}
 import java.util
 import java.util.Locale
+
+import com.agoda.adp.messaging.kafka.network.ClientAggregationController
+import org.apache.log4j.{Level, LogManager, Logger}
 
 
 object Log4jController {
@@ -53,7 +55,6 @@ private class Log4jController extends Log4jControllerMBean {
     }
     lst
   }
-
 
   private def newLogger(loggerName: String) =
     if (loggerName == "root")
@@ -88,12 +89,48 @@ private class Log4jController extends Log4jControllerMBean {
     else false
   }
 
-}
+  def setEnableAggregationLog(t: String) = {
+    //TODO Start/Stop thread
+    try {
+      val enable = t.toUpperCase()
+      if(enable == "TRUE"){
+        ClientAggregationController.start()
+      } else if(enable == "FALSE"){
+        ClientAggregationController.stop()
+      }
+    } catch {
+      case ex: Exception => Logger.getLogger("kafka.headerinfo.logger").debug("Error on Enable AggregationLog: " + ex.printStackTrace())
+    }
+  }
 
+  def getEnableAggregationLog() = {
+    ClientAggregationController.getEnable().toString
+  }
+
+  def setAggregationPeriod(t: String) = {
+    try {
+      val value = Integer.parseInt(t)
+      if(value > 0){
+        ClientAggregationController.printTraceLogPeriod = value
+        ClientAggregationController.restart()
+      }
+    } catch {
+      case ex: Exception => Logger.getLogger("kafka.headerinfo.logger").debug("Error on set Aggregation period: " + ex.printStackTrace())
+    }
+  }
+
+  def getAggregationPeriod()  = {
+    ClientAggregationController.printTraceLogPeriod.toString
+  }
+}
 
 private trait Log4jControllerMBean {
   def getLoggers: java.util.List[String]
   def getLogLevel(logger: String): String
   def setLogLevel(logger: String, level: String): Boolean
+  def getEnableAggregationLog() : String
+  def setEnableAggregationLog(t: String)
+  def getAggregationPeriod() : String
+  def setAggregationPeriod(t: String)
 }
 
