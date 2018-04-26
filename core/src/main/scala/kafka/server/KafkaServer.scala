@@ -288,6 +288,9 @@ class KafkaServer(val config: KafkaConfig, time: Time = Time.SYSTEM, threadNameP
         isStartingUp.set(false)
         AppInfoParser.registerAppInfo(jmxPrefix, config.brokerId.toString)
         info("started")
+
+        // Initialize Log Aggregation
+        Log4jController.setAggationLogFromProperties(config.logAggregationEnable, config.logAggregationGranularitySec)
       }
     }
     catch {

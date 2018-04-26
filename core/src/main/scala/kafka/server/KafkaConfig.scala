@@ -211,6 +211,10 @@ object Defaults {
   val SaslKerberosTicketRenewJitter = SaslConfigs.DEFAULT_KERBEROS_TICKET_RENEW_JITTER
   val SaslKerberosMinTimeBeforeRelogin = SaslConfigs.DEFAULT_KERBEROS_MIN_TIME_BEFORE_RELOGIN
   val SaslKerberosPrincipalToLocalRules = SaslConfigs.DEFAULT_SASL_KERBEROS_PRINCIPAL_TO_LOCAL_RULES
+
+  /** ********* ADP Custom Configuration ***********/
+  val LogAggregationEnable = true
+  val LogAggregationGranularitySec = 600
 }
 
 object KafkaConfig {
@@ -354,6 +358,10 @@ object KafkaConfig {
   val TransactionsTopicReplicationFactorProp = "transaction.state.log.replication.factor"
   val TransactionsAbortTimedOutTransactionCleanupIntervalMsProp = "transaction.abort.timed.out.transaction.cleanup.interval.ms"
   val TransactionsRemoveExpiredTransactionalIdCleanupIntervalMsProp = "transaction.remove.expired.transaction.cleanup.interval.ms"
+
+  /** ********* ADP Custom Configuration ****************/
+  val LogAggregationEnableProp = "adp.custom.log.aggregation.enable"
+  val LogAggregationGranularitySecProp = "adp.custom.log.aggregation.granularity.sec"
 
   /** ********* Quota Configuration ***********/
   val ProducerQuotaBytesPerSecondDefaultProp = "quota.producer.default"
@@ -660,6 +668,10 @@ object KafkaConfig {
   val SaslKerberosMinTimeBeforeReloginDoc = SaslConfigs.SASL_KERBEROS_MIN_TIME_BEFORE_RELOGIN_DOC
   val SaslKerberosPrincipalToLocalRulesDoc = SaslConfigs.SASL_KERBEROS_PRINCIPAL_TO_LOCAL_RULES_DOC
 
+  /** ********* ADP Custom Configuration ****************/
+  val LogAggregationEnableDoc = "Enable aggregation-logging in order to collect kafka-client version"
+  val LogAggregationGranularitySecDoc = "The granularity of aggregation-logging in seconds"
+
   private val configDef = {
     import ConfigDef.Importance._
     import ConfigDef.Range._
@@ -856,6 +868,9 @@ object KafkaConfig {
       .define(SaslKerberosMinTimeBeforeReloginProp, LONG, Defaults.SaslKerberosMinTimeBeforeRelogin, MEDIUM, SaslKerberosMinTimeBeforeReloginDoc)
       .define(SaslKerberosPrincipalToLocalRulesProp, LIST, Defaults.SaslKerberosPrincipalToLocalRules, MEDIUM, SaslKerberosPrincipalToLocalRulesDoc)
 
+      /** ********* ADP Custom Configuration ****************/
+      .define(LogAggregationEnableProp, BOOLEAN, Defaults.LogAggregationEnable, LOW, LogAggregationEnableDoc)
+      .define(LogAggregationGranularitySecProp, INT, Defaults.LogAggregationGranularitySec, LOW, LogAggregationGranularitySecDoc)
   }
 
   def configNames() = configDef.names().asScala.toList.sorted
@@ -1068,6 +1083,10 @@ class KafkaConfig(val props: java.util.Map[_, _], doLog: Boolean) extends Abstra
 
   /** ********* Transaction Configuration **************/
   val transactionIdExpirationMs = getInt(KafkaConfig.TransactionalIdExpirationMsProp)
+
+  /** ********* ADP Custom Configuration **************/
+  val logAggregationEnable = getBoolean(KafkaConfig.LogAggregationEnableProp)
+  val logAggregationGranularitySec = getInt(KafkaConfig.LogAggregationGranularitySecProp)
 
   val deleteTopicEnable = getBoolean(KafkaConfig.DeleteTopicEnableProp)
   val compressionType = getString(KafkaConfig.CompressionTypeProp)
