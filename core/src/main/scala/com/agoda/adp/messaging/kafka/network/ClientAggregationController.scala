@@ -8,10 +8,9 @@ import org.apache.log4j.Logger
 object ClientAggregationController {
   private val headerExtractedInfo = Logger.getLogger("kafka.headerinfo.logger")
   private val controllerLock: ReentrantLock = new ReentrantLock()
-  final val DEFAULT_PERIOD = 600
 
   @volatile private var isEnabled = false
-  var granularity = DEFAULT_PERIOD
+  var granularity = 600
 
   var cPool: ClientRequestConsumer = null
   var cScheduler: ClientRequestAggregatorScheduler = null
