@@ -21,10 +21,12 @@ import java.net.InetAddress
 import java.nio.ByteBuffer
 import java.util.concurrent._
 
+import com.agoda.adp.messaging.kafka.network.ClientRequestFormatAppender
 import com.typesafe.scalalogging.Logger
 import com.yammer.metrics.core.{Gauge, Meter}
 import kafka.metrics.KafkaMetricsGroup
 import kafka.utils.{Logging, NotNothing}
+import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.memory.MemoryPool
 import org.apache.kafka.common.network.Send
 import org.apache.kafka.common.protocol.{ApiKeys, Errors}
@@ -38,6 +40,8 @@ import scala.reflect.ClassTag
 
 object RequestChannel extends Logging {
   private val requestLogger = Logger("kafka.request.logger")
+  // TODO: add gauge
+  private val headerExtractedInfo = Logger("kafka.headerinfo.logger")
 
   val RequestQueueSizeMetric = "RequestQueueSize"
   val ResponseQueueSizeMetric = "ResponseQueueSize"
@@ -113,6 +117,38 @@ object RequestChannel extends Logging {
     def requestThreadTimeNanos = {
       if (apiLocalCompleteTimeNanos == -1L) apiLocalCompleteTimeNanos = Time.SYSTEM.nanoseconds
       math.max(apiLocalCompleteTimeNanos - requestDequeueTimeNanos, 0L)
+    }
+
+    //TODO if there is any needed request, save topicPartitionSets and groupId
+    val topicPartitionSets: mutable.Set[String] = if (header != null) {
+      try {
+        header.apiKey() match {
+          case ApiKeys.OFFSET_COMMIT => body[OffsetCommitRequest].offsetData().keySet().asScala.map(tp=>tp.topic())
+          case ApiKeys.FETCH => body[FetchRequest].fetchData().keySet().asScala.map(tp=>tp.topic())
+          case ApiKeys.PRODUCE => body[ProduceRequest].partitionRecordsOrFail().keySet().asScala.map(tp=>tp.topic())
+          case ApiKeys.METADATA => collection.mutable.Set(body[MetadataRequest].topics().asScala:_*)
+          case _ => null
+        }
+      } catch {
+        case ex: Exception => headerExtractedInfo.debug("Could not extract Topics: Exception: " + ex.getMessage)
+          null
+      }
+    } else {
+      null
+    }
+
+    val groupId: String = if (header != null) {
+      try {
+        header.apiKey() match {
+          case ApiKeys.OFFSET_COMMIT => body[OffsetCommitRequest].groupId
+          case _ => "unknown"
+        }
+      } catch {
+        case ex: Exception => headerExtractedInfo.debug("Could not extract GroupId: Exception: " + ex.getMessage)
+          "unknown"
+      }
+    } else {
+      "unknown"
     }
 
     def updateRequestMetrics(networkThreadTimeNanos: Long, response: Response) {
@@ -206,6 +242,22 @@ object RequestChannel extends Logging {
         if (messageConversionsTimeMs > 0)
           builder.append(",messageConversionsTime:").append(messageConversionsTimeMs)
         requestLogger.debug(builder.toString)
+
+        //TODO if there is any needed request, appendIntoQueue
+        if (header != null) {
+          if(header.apiKey().equals(ApiKeys.OFFSET_COMMIT) ||
+            header.apiKey().equals(ApiKeys.FETCH) ||
+            header.apiKey().equals(ApiKeys.PRODUCE) ||
+            header.apiKey().equals(ApiKeys.METADATA)) {
+
+            val apiKey = header.apiKey().id
+            val apiVersion = header.apiVersion()
+            val clientId = header.clientId()
+
+            ClientRequestFormatAppender.appendIntoQueue(apiKey, apiVersion, clientId, topicPartitionSets, context.connectionId, groupId)
+          }
+        }
+
       }
     }
 

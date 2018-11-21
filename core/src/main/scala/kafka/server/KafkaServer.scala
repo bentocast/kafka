@@ -23,6 +23,7 @@ import java.util
 import java.util.concurrent._
 import java.util.concurrent.atomic.{AtomicBoolean, AtomicInteger}
 
+import com.agoda.adp.messaging.kafka.network.ClientAggregationController
 import com.yammer.metrics.core.Gauge
 import kafka.api.KAFKA_0_9_0
 import kafka.cluster.Broker
@@ -320,6 +321,9 @@ class KafkaServer(val config: KafkaConfig, time: Time = Time.SYSTEM, threadNameP
         isStartingUp.set(false)
         AppInfoParser.registerAppInfo(jmxPrefix, config.brokerId.toString, metrics)
         info("started")
+
+        // Initialize Log Aggregation
+        Log4jControllerRegistration.setAggregationLogFromProperties(config.logAggregationEnable, config.logAggregationGranularitySec)
       }
     }
     catch {
@@ -556,6 +560,10 @@ class KafkaServer(val config: KafkaConfig, time: Time = Time.SYSTEM, threadNameP
       // last in the `if` block. If the order is reversed, we could shutdown twice or leave `isShuttingDown` set to
       // `true` at the end of this method.
       if (shutdownLatch.getCount > 0 && isShuttingDown.compareAndSet(false, true)) {
+        if( ClientAggregationController.getEnable() ){
+          CoreUtils.swallow(ClientAggregationController.stop(), this)
+        }
+
         CoreUtils.swallow(controlledShutdown(), this)
         brokerState.newState(BrokerShuttingDown)
 
