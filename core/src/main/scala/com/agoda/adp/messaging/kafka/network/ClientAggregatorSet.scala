@@ -2,13 +2,13 @@ package com.agoda.adp.messaging.kafka.network
 
 import java.util.concurrent.locks.ReentrantLock
 
+import com.typesafe.scalalogging.Logger
 import kafka.utils.CoreUtils.inLock
-import org.apache.log4j.Logger
 
 import scala.collection.mutable
 
 object ClientAggregatorSet {
-  private val headerExtractedInfo = Logger.getLogger("kafka.headerinfo.logger")
+  private val headerExtractedInfo = Logger("kafka.headerinfo.logger")
   private val aggregatorLock: ReentrantLock = new ReentrantLock()
 
   @volatile var aggSet: mutable.HashSet[String] = new mutable.HashSet[String]()

@@ -2,13 +2,13 @@ package com.agoda.adp.messaging.kafka.network
 
 import java.util.concurrent.TimeUnit
 
+import com.typesafe.scalalogging.Logger
 import kafka.utils.KafkaScheduler
-import org.apache.log4j.Logger
 
 class ClientRequestAggregatorScheduler(timeToSchedule: Int) {
   //TODO Use only 1 thread to write result LOG
 
-  private val headerExtractedInfo = Logger.getLogger("kafka.headerinfo.logger")
+  private val headerExtractedInfo = Logger("kafka.headerinfo.logger")
   val scheduler = new KafkaScheduler(threads = 1, threadNamePrefix = "Log-PrintingRequestLogAggregation-")
   scheduler.startup()
   scheduler.schedule("PrintingRequestLogAggregation-" + timeToSchedule, printAggregationSetTask, timeToSchedule, timeToSchedule, unit = TimeUnit.SECONDS)

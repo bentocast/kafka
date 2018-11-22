@@ -4,9 +4,8 @@ import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.locks.ReentrantLock
 
-import org.apache.kafka.common.TopicPartition
+import com.typesafe.scalalogging.Logger
 import org.apache.kafka.common.protocol.ApiKeys
-import org.apache.log4j.Logger
 
 import scala.collection.mutable
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -15,7 +14,7 @@ import scala.concurrent.Future
 
 object ClientRequestFormatAppender {
   private val appenderLock: ReentrantLock = new ReentrantLock()
-  private val headerExtractedInfo = Logger.getLogger("kafka.headerinfo.logger")
+  private val headerExtractedInfo = Logger("kafka.headerinfo.logger")
   val headerInfoIncomingQueue = new ArrayBlockingQueue[String](100000)
   var overflowAggregationNum = new AtomicLong(0L)
 

@@ -2,11 +2,11 @@ package com.agoda.adp.messaging.kafka.network
 
 import java.util.concurrent.{ExecutorService, Executors, TimeUnit}
 
-import org.apache.log4j.Logger
+import com.typesafe.scalalogging.Logger
 
 class ClientRequestConsumer() {
   //TODO Excutor implemetation
-  private val headerExtractedInfo = Logger.getLogger("kafka.headerinfo.logger")
+  private val headerExtractedInfo = Logger("kafka.headerinfo.logger")
   private val pool: ExecutorService = Executors.newFixedThreadPool(1)
   private val processHandler = new processHandler()
 
@@ -16,7 +16,7 @@ class ClientRequestConsumer() {
         pool.execute(processHandler)
     } catch {
       case ex: Exception => {
-        headerExtractedInfo.debug(ex.printStackTrace())
+        headerExtractedInfo.debug(ex.getMessage())
         shutdown()
       }
     }
@@ -43,7 +43,7 @@ class ClientRequestConsumer() {
 }
 
 class processHandler() extends Runnable {
-  private val headerExtractedInfo = Logger.getLogger("kafka.headerinfo.logger")
+  private val headerExtractedInfo = Logger("kafka.headerinfo.logger")
   @volatile private var shuttingDown = false
 
   override def run() = {

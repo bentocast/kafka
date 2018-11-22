@@ -26,7 +26,6 @@ import com.typesafe.scalalogging.Logger
 import com.yammer.metrics.core.{Gauge, Meter}
 import kafka.metrics.KafkaMetricsGroup
 import kafka.utils.{Logging, NotNothing}
-import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.memory.MemoryPool
 import org.apache.kafka.common.network.Send
 import org.apache.kafka.common.protocol.{ApiKeys, Errors}
@@ -120,7 +119,7 @@ object RequestChannel extends Logging {
     }
 
     //TODO if there is any needed request, save topicPartitionSets and groupId
-    val topicPartitionSets: mutable.Set[String] = if (header != null) {
+    lazy val topicPartitionSets: mutable.Set[String] = if (header != null) {
       try {
         header.apiKey() match {
           case ApiKeys.OFFSET_COMMIT => body[OffsetCommitRequest].offsetData().keySet().asScala.map(tp=>tp.topic())
@@ -137,7 +136,7 @@ object RequestChannel extends Logging {
       null
     }
 
-    val groupId: String = if (header != null) {
+    lazy val groupId: String = if (header != null) {
       try {
         header.apiKey() match {
           case ApiKeys.OFFSET_COMMIT => body[OffsetCommitRequest].groupId
@@ -242,22 +241,20 @@ object RequestChannel extends Logging {
         if (messageConversionsTimeMs > 0)
           builder.append(",messageConversionsTime:").append(messageConversionsTimeMs)
         requestLogger.debug(builder.toString)
+      }
+      //TODO if there is any needed request, appendIntoQueue
+      if (header != null) {
+        if(header.apiKey().equals(ApiKeys.OFFSET_COMMIT) ||
+          header.apiKey().equals(ApiKeys.FETCH) ||
+          header.apiKey().equals(ApiKeys.PRODUCE) ||
+          header.apiKey().equals(ApiKeys.METADATA)) {
 
-        //TODO if there is any needed request, appendIntoQueue
-        if (header != null) {
-          if(header.apiKey().equals(ApiKeys.OFFSET_COMMIT) ||
-            header.apiKey().equals(ApiKeys.FETCH) ||
-            header.apiKey().equals(ApiKeys.PRODUCE) ||
-            header.apiKey().equals(ApiKeys.METADATA)) {
+          val apiKey = header.apiKey().id
+          val apiVersion = header.apiVersion()
+          val clientId = header.clientId()
 
-            val apiKey = header.apiKey().id
-            val apiVersion = header.apiVersion()
-            val clientId = header.clientId()
-
-            ClientRequestFormatAppender.appendIntoQueue(apiKey, apiVersion, clientId, topicPartitionSets, context.connectionId, groupId)
-          }
+          ClientRequestFormatAppender.appendIntoQueue(apiKey, apiVersion, clientId, topicPartitionSets, context.connectionId, groupId)
         }
-
       }
     }
 
