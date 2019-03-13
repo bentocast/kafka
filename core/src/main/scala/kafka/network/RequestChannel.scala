@@ -20,6 +20,7 @@ package kafka.network
 import java.net.InetAddress
 import java.nio.ByteBuffer
 import java.util.concurrent._
+import java.util.concurrent.atomic.AtomicLong
 
 import com.agoda.adp.messaging.kafka.network.ClientRequestFormatAppender
 import com.typesafe.scalalogging.Logger
@@ -306,6 +307,14 @@ class RequestChannel(val queueSize: Int) extends KafkaMetricsGroup {
     def value = processors.values.asScala.foldLeft(0) {(total, processor) =>
       total + processor.responseQueueSize
     }
+  })
+
+  newGauge("OverflowAggregationNum", new Gauge[AtomicLong] {
+    def value = ClientRequestFormatAppender.overflowAggregationNum
+  })
+
+  newGauge("CurrentAggregationQueueSize", new Gauge[Long] {
+    def value = ClientRequestFormatAppender.headerInfoIncomingQueue.size()
   })
 
   def addProcessor(processor: Processor): Unit = {
