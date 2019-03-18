@@ -231,6 +231,10 @@ object Defaults {
   val PasswordEncoderCipherAlgorithm = "AES/CBC/PKCS5Padding"
   val PasswordEncoderKeyLength = 128
   val PasswordEncoderIterations = 4096
+
+  /** ********* ADP Custom Configuration ***********/
+  val LogAggregationEnable = true
+  val LogAggregationGranularitySec = 600
 }
 
 object KafkaConfig {
@@ -445,6 +449,10 @@ object KafkaConfig {
   val PasswordEncoderCipherAlgorithmProp = "password.encoder.cipher.algorithm"
   val PasswordEncoderKeyLengthProp =  "password.encoder.key.length"
   val PasswordEncoderIterationsProp =  "password.encoder.iterations"
+
+  /** ********* ADP Custom Configuration ****************/
+  val LogAggregationEnableProp = "adp.custom.log.aggregation.enable"
+  val LogAggregationGranularitySecProp = "adp.custom.log.aggregation.granularity.sec"
 
   /* Documentation */
   /** ********* Zookeeper Configuration ***********/
@@ -739,6 +747,10 @@ object KafkaConfig {
   val PasswordEncoderKeyLengthDoc =  "The key length used for encoding dynamically configured passwords."
   val PasswordEncoderIterationsDoc =  "The iteration count used for encoding dynamically configured passwords."
 
+  /** ********* ADP Custom Configuration ****************/
+  val LogAggregationEnableDoc = "Enable aggregation-logging in order to collect kafka-client version"
+  val LogAggregationGranularitySecDoc = "The granularity of aggregation-logging in seconds"
+
   private val configDef = {
     import ConfigDef.Importance._
     import ConfigDef.Range._
@@ -956,6 +968,10 @@ object KafkaConfig {
       .define(PasswordEncoderCipherAlgorithmProp, STRING, Defaults.PasswordEncoderCipherAlgorithm, LOW, PasswordEncoderCipherAlgorithmDoc)
       .define(PasswordEncoderKeyLengthProp, INT, Defaults.PasswordEncoderKeyLength, atLeast(8), LOW, PasswordEncoderKeyLengthDoc)
       .define(PasswordEncoderIterationsProp, INT, Defaults.PasswordEncoderIterations, atLeast(1024), LOW, PasswordEncoderIterationsDoc)
+
+      /** ********* ADP Custom Configuration ****************/
+      .define(LogAggregationEnableProp, BOOLEAN, Defaults.LogAggregationEnable, LOW, LogAggregationEnableDoc)
+      .define(LogAggregationGranularitySecProp, INT, Defaults.LogAggregationGranularitySec, LOW, LogAggregationGranularitySecDoc)
   }
 
   def configNames() = configDef.names().asScala.toList.sorted
@@ -1210,6 +1226,10 @@ class KafkaConfig(val props: java.util.Map[_, _], doLog: Boolean, dynamicConfigO
 
   /** ********* Fetch Session Configuration **************/
   val maxIncrementalFetchSessionCacheSlots = getInt(KafkaConfig.MaxIncrementalFetchSessionCacheSlots)
+
+  /** ********* ADP Custom Configuration **************/
+  val logAggregationEnable = getBoolean(KafkaConfig.LogAggregationEnableProp)
+  val logAggregationGranularitySec = getInt(KafkaConfig.LogAggregationGranularitySecProp)
 
   val deleteTopicEnable = getBoolean(KafkaConfig.DeleteTopicEnableProp)
   def compressionType = getString(KafkaConfig.CompressionTypeProp)

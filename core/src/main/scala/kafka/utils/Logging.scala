@@ -17,6 +17,7 @@
 
 package kafka.utils
 
+import com.agoda.adp.messaging.kafka.network.ClientAggregationController
 import com.typesafe.scalalogging.Logger
 import org.slf4j.{LoggerFactory, Marker, MarkerFactory}
 
@@ -32,6 +33,46 @@ object Log4jControllerRegistration {
   } catch {
     case _: Exception => logger.info("Couldn't register kafka:type=kafka.Log4jController MBean")
   }
+
+  def setAggregationLogFromProperties(enable: Boolean, sec: Int) = {
+      setEnableAggregationLog(enable.toString)
+      setGranularityInSec(sec.toString)
+  }
+
+  def setEnableAggregationLog(t: String) = {
+    //TODO Start/Stop thread
+    try {
+      val enable = t.toUpperCase()
+      if(enable == "TRUE"){
+        ClientAggregationController.start()
+      } else if(enable == "FALSE"){
+        ClientAggregationController.stop()
+      }
+    } catch {
+      case ex: Exception => logger.warn("Error on Enable AggregationLog: " + ex.printStackTrace())
+    }
+  }
+
+  def getEnableAggregationLog() = {
+    ClientAggregationController.getEnable().toString
+  }
+
+  def setGranularityInSec(t: String) = {
+    try {
+      val value = Integer.parseInt(t)
+      if(value > 0){
+        ClientAggregationController.granularity = value
+        ClientAggregationController.restart()
+      }
+    } catch {
+      case ex: Exception => logger.warn("Error on set Aggregation period: " + ex.printStackTrace())
+    }
+  }
+
+  def getGranularityInSec()  = {
+    ClientAggregationController.granularity.toString
+  }
+
 }
 
 private object Logging {
