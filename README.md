@@ -212,3 +212,6 @@ Apache Kafka is interested in building the community; we would welcome any thoug
 
 To contribute follow the instructions here:
  * http://kafka.apache.org/contributing.html
+
+### Confluence ###
+https://confluence.agoda.local/display/ADPMES/Kafka
