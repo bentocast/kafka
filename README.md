@@ -214,4 +214,4 @@ To contribute follow the instructions here:
  * http://kafka.apache.org/contributing.html
 
 ### Confluence ###
-https://confluence.agoda.local/display/ADPMES/Kafka
+https://confluence.agoda.local/pages/viewpage.action?pageId=19368045
