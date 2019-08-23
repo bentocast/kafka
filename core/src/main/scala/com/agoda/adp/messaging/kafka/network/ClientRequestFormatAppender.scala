@@ -5,9 +5,8 @@ import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.locks.ReentrantLock
 
 import com.typesafe.scalalogging.Logger
-import org.apache.kafka.common.protocol.ApiKeys
 
-import scala.collection.mutable
+import scala.collection.Set
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 
@@ -18,7 +17,7 @@ object ClientRequestFormatAppender {
   val headerInfoIncomingQueue = new ArrayBlockingQueue[String](100000)
   var overflowAggregationNum = new AtomicLong(0L)
 
-  def appendIntoQueue(apiKey: Short, apiVersion: Short, clientId: String, topicPartitionSets: mutable.Set[String], connectionId: String, groupId: String) = Future {
+  def appendIntoQueue(apiKey: Short, apiVersion: Short, clientId: String, topicPartitionSets: Set[String], connectionId: String, groupId: String) = Future {
     //TODO extract useful info before adding into headerInfoIncomingQueue
     //TODO To be safe as much as possible
     //TODO atomic/volatile overflow count
@@ -36,37 +35,21 @@ object ClientRequestFormatAppender {
         "unknown"
       }
 
-      val topics = if(topicPartitionSets != null){
-        val topicSets: mutable.Set[String] = new mutable.HashSet[String]()
-        for( i <- topicPartitionSets){
-          i match {
-            case i: String => topicSets.add(i)
-          }
-        }
-        mutable.SortedSet(topicSets.toList: _*).mkString(",")
+      val topics = if (topicPartitionSets != null) {
+        topicPartitionSets.mkString(",")
       } else {
         "unknown"
       }
 
-      if (apiKey == ApiKeys.OFFSET_COMMIT.id) {
-
-        val commitOffsetRecord = "{\"apiKey\":\"" + apiKey + "\"" +
-          ",\"apiVersion\":\"" + apiVersion + "\"" +
-          ",\"clientId\":\"" + clientId + "\"" +
-          ",\"ip\":\"" + ip + "\"" +
-          ",\"topics\":\"" + topics + "\""+
-          ",\"consumerGroup\":\"" + groupId + "\"" +
-          "}"
-        if(!headerInfoIncomingQueue.offer(commitOffsetRecord)) overflowAggregationNum.incrementAndGet()
-      } else {
-        val produceORFetchRecord = "{\"apiKey\":\"" + apiKey + "\"" +
-          ",\"apiVersion\":\"" + apiVersion + "\"" +
-          ",\"clientId\":\"" + clientId + "\"" +
-          ",\"ip\":\"" + ip + "\"" +
-          ",\"topics\":\"" + topics + "\""+
-          "}"
-        if(!headerInfoIncomingQueue.offer(produceORFetchRecord)) overflowAggregationNum.incrementAndGet()
-      }
+      val record = "{\"apiKey\":\"" + apiKey + "\"" +
+        ",\"apiVersion\":\"" + apiVersion + "\"" +
+        ",\"clientId\":\"" + clientId + "\"" +
+        ",\"ip\":\"" + ip + "\"" +
+        ",\"topics\":\"" + topics + "\"" + {
+        if (!groupId.equals("unknown")) ",\"consumerGroup\":\"" + groupId + "\"" else ""
+      } +
+        "}"
+      if (!headerInfoIncomingQueue.offer(record)) overflowAggregationNum.incrementAndGet()
     }
   }
 
